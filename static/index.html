@@ -1,0 +1,1197 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Робот на нейросети</title>
+<link rel="icon" href="data:,">
+<style>
+  /* Стиль — «инженерный блокнот» недели 6: бумага в точку, контур и жёсткая тень цвета индиго.
+     Мозг до дообучения — бежевый и серый робот, после — горчичный и тёмный робот. */
+  :root {
+    --paper: #f4efe6; --card: #fffdf9; --ink: #23264d; --soft: #50557a; --faint: rgba(35, 38, 77, .14);
+    --accent: #e5603b; --mustard: #f2d37a; --beige: #e6dccb; --read: #ebe5d9; --before: #7a7fa8;
+    --err: #b42318; --err-bg: #fbe3dc;
+    --line: 2px solid var(--ink);
+    --display: Bahnschrift, "Segoe UI", sans-serif;
+    --mono: "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; gap: 12px; padding: 14px 32px 16px;
+    color: var(--ink); font: 19px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    background: var(--paper) radial-gradient(rgba(35, 38, 77, .09) 1.3px, transparent 1.6px) 0 0 / 24px 24px;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .45; }
+  :focus-visible { outline: 3px dashed var(--ink); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  .soft { color: var(--soft); }
+  .grow { flex: 1; }
+  h2 { margin: 0; font: 700 17px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; }
+
+  .press { --shade: var(--ink); border: var(--line); box-shadow: 3px 3px 0 var(--shade); transition: transform .08s, box-shadow .08s; }
+  .press:not(:disabled):hover { box-shadow: 4px 4px 0 var(--shade); }
+  .press:not(:disabled):active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--shade); }
+  .press:disabled { box-shadow: none; }
+  .main {
+    --shade: var(--accent); padding: 10px 28px; border-radius: 12px; background: var(--ink); color: var(--card);
+    font: 600 23px/1.2 var(--display); box-shadow: 5px 5px 0 var(--shade); white-space: nowrap;
+  }
+  .main.quiet { --shade: var(--ink); background: var(--card); color: var(--ink); }
+  .ghost { padding: 6px 16px; border-radius: 10px; background: var(--card); font: 600 19px var(--display); white-space: nowrap; }
+  .round { width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--card); font: 700 22px/1 var(--display); }
+  .card { border: var(--line); border-radius: 16px; background: var(--card); box-shadow: 4px 4px 0 var(--ink); }
+
+  /* Шапка */
+  header { display: flex; align-items: center; gap: 14px; }
+  .logo { width: 44px; height: 44px; flex: none; }
+  h1 { margin: 0; font: 600 34px/1 var(--display); }
+  .switch { color: inherit; text-decoration: none; }   /* второй проект — «Ассистент» */
+  .chip { padding: 3px 12px; border: 2px solid rgba(35, 38, 77, .3); border-radius: 8px; color: var(--soft); font-size: 17px; white-space: nowrap; }
+
+  .tabs { display: flex; margin-left: 6px; border: var(--line); border-radius: 10px; overflow: hidden; }
+  .tabs button { padding: 5px 16px; border: none; background: var(--card); font: 600 19px var(--display); white-space: nowrap; }
+  .tabs button + button { border-left: var(--line); }
+  .tabs button[aria-current="true"] { background: var(--ink); color: var(--card); }
+  .view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 560px; gap: 22px; }
+
+  /* Вкладка «Чему учили»: примеры, длины, шаблон, главные числа */
+  .examples { display: flex; flex-direction: column; min-height: 0; padding: 14px 18px; }
+  .ex-head { display: flex; align-items: baseline; gap: 14px; }
+  .ex-head b { font: 700 26px var(--display); }
+  .ex-words { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 12px; }
+  .ex-words button { padding: 2px 10px; border: 2px solid var(--ink); border-radius: 16px; background: var(--card); font: 15px var(--mono); }
+  .ex-words button small { color: var(--soft); font-family: "Segoe UI", sans-serif; }
+  .ex-words button[aria-pressed="true"] { background: var(--ink); color: var(--card); }
+  .ex-words button[aria-pressed="true"] small { color: #d7d9ee; }
+  .ex-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; align-content: start; scrollbar-width: thin; }
+  .ex-card {                               /* один обучающий пример: фраза → команды → путь робота */
+    display: grid; grid-template-columns: minmax(0, 1fr) 100px; gap: 6px 10px; align-items: center; padding: 8px 10px 8px 12px;
+    border: 2px solid var(--faint); border-radius: 12px; background: var(--paper); text-align: left;
+  }
+  .ex-card:hover { border-color: var(--ink); }
+  .ex-card .cmd { font: 600 15px var(--mono); }
+  .ex-card .cmd mark { padding: 0 2px; border-radius: 3px; background: var(--mustard); color: inherit; }
+  .ex-card .strip { max-height: 46px; }
+  .ex-card .strip .ic { width: 20px; height: 20px; padding: 2px; border-radius: 5px; }
+  .ex-card .thumb { grid-column: 2; grid-row: 1 / 3; width: 100px; height: 64px; }
+  .ex-more { align-self: center; margin-top: 10px; }
+  .data-side .card { padding: 14px 18px; }
+  .hist { display: flex; align-items: flex-end; gap: 10px; height: 100px; margin-top: 10px; }
+  .hist div { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+  .hist i { width: 100%; min-height: 3px; border-radius: 6px 6px 0 0; background: var(--ink); }
+  .hist i.long { background: var(--accent); }
+  .hist b { font: 700 17px var(--display); }
+  .hist span { color: var(--soft); font-size: 14px; white-space: nowrap; }
+  .note { margin: 10px 0 0; font-size: 16px; }
+  .note b { color: var(--accent); }
+  .raw { margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--read); font: 14px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .down { margin: 6px 0; color: var(--soft); font: 600 15px var(--display); }
+  .tokens { display: flex; flex-wrap: wrap; gap: 3px; font: 14px/1 var(--mono); }
+  .tk { padding: 4px 5px; border-radius: 5px; background: var(--read); color: var(--soft); white-space: pre; }
+  .tk.special { background: var(--soft); color: var(--card); }
+  .tk.learn { background: var(--mustard); color: var(--ink); font-weight: 700; }
+  .tk.special.learn { box-shadow: inset 0 0 0 3px var(--mustard); background: var(--soft); color: var(--card); }
+  .tk-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 15px; }
+  /* Окно «Как модель учится на примере»: четыре кадра истории; детали — свёрнуты */
+  .dialog.inside { width: min(1640px, 100%); overflow-y: auto; }
+  .story { display: flex; align-items: stretch; gap: 10px; }
+  .story .next { align-self: center; color: var(--soft); font: 700 34px var(--display); }
+  .frame { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 14px 16px; border: var(--line); border-radius: 16px; background: var(--paper); }
+  .frame h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 700 22px var(--display); }
+  .frame h3 i { display: grid; place-items: center; width: 34px; height: 34px; border: var(--line); border-radius: 50%; background: var(--card); font: 700 18px var(--display); font-style: normal; }
+  .frame.before h3 i { background: var(--beige); }
+  .frame.after h3 i { background: var(--mustard); }
+  .frame .pic { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 10px; min-height: 220px; }
+  .frame p { margin: 12px 0 0; font-size: 18px; }
+  .bubble { max-width: 92%; padding: 10px 14px; border: var(--line); border-radius: 14px; background: var(--card); font: 600 18px var(--mono); }
+  .bubble.bot { align-self: flex-end; background: var(--mustard); }
+  .bubble small { display: block; margin-bottom: 4px; color: var(--soft); font: 600 13px var(--display); }
+  .pieces { display: flex; flex-wrap: wrap; gap: 5px; }
+  .pieces span { padding: 5px 8px; border: 2px solid var(--ink); border-radius: 8px; background: var(--mustard); font: 700 16px var(--mono); white-space: pre; }
+  .meters { display: flex; align-items: flex-end; gap: 3px; height: 130px; padding: 0 4px; border-bottom: 2px solid var(--faint); }
+  .meters i { flex: 1; max-width: 26px; min-height: 3px; border-radius: 4px 4px 0 0; background: var(--before); }
+  .after .meters i { background: var(--mustard); box-shadow: inset 0 0 0 1.5px var(--ink); }
+  .meters i.miss { position: relative; background: var(--err); box-shadow: none; }
+  .meters i.miss::after { content: "✗"; position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%); color: var(--err); font: 700 20px var(--display); }
+  .sure { font: 700 40px/1 var(--display); }
+  .sure small { margin-left: 8px; color: var(--soft); font: 600 18px var(--display); }
+  .frame p b.err { color: var(--err); }
+  .story-sum { margin: 0; color: var(--soft); font-size: 18px; }
+  .in-more summary { cursor: pointer; color: var(--soft); font: 600 17px var(--display); }
+  .in-more[open] { display: flex; flex-direction: column; gap: 12px; }
+  .in-top { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; }
+  .in-card { padding: 12px 16px; border: 2px solid var(--faint); border-radius: 14px; background: var(--paper); min-width: 0; }
+  .in-card h3 { margin: 0 0 8px; font: 700 19px var(--display); }
+  .in-text { margin: 0; font: 15px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .in-text .sp { padding: 0 3px; border-radius: 4px; background: var(--soft); color: var(--card); }
+  .in-text .nl { color: var(--soft); }
+  .in-text .ans { background: var(--mustard); border-radius: 3px; }
+  .in-when b.big { display: block; font: 700 32px/1.1 var(--display); }
+  .in-when .mates { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; font: 13px var(--mono); }
+  .in-when .mates span { padding: 1px 6px; border-radius: 5px; background: var(--read); }
+  .in-tokens { display: flex; flex-wrap: wrap; gap: 4px; }
+  .in-tokens .tk { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 6px; font: 14px/1.1 var(--mono); }
+  .in-tokens .tk small { font-size: 11px; opacity: .8; }
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 14px; margin-top: 10px; }
+  .facts b { display: block; font: 700 26px/1.1 var(--display); white-space: nowrap; }
+  .facts span { color: var(--soft); font-size: 15px; }
+
+  /* Мир робота */
+  .world { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .world-head { flex: none; display: flex; align-items: center; gap: 14px; padding: 10px 16px 10px 20px; border-bottom: var(--line); }
+  .status { padding: 3px 12px; border: var(--line); border-radius: 10px; background: var(--card); font: 700 17px var(--display); white-space: nowrap; }
+  .status.ok { background: var(--mustard); }
+  .status.bad { background: var(--err-bg); border-color: var(--err); color: var(--err); }
+  .status.wait::after { content: "…"; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .toggle { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 16px; cursor: pointer; white-space: nowrap; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--ink); }
+  .stage { position: relative; flex: 1; min-height: 0; background: #efe9dd; }
+  .field { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .say {                                   /* мозг прислал не команды, а текст — робот его «слышит», но выполнить не может */
+    position: absolute; left: 50%; top: 16px; z-index: 2; width: min(80%, 680px); transform: translateX(-50%);
+    padding: 12px 18px; border: var(--line); border-radius: 16px; background: var(--card); box-shadow: 3px 3px 0 var(--ink);
+    font-size: 18px; font-style: italic; color: var(--soft);
+  }
+  .say b { display: block; margin-bottom: 4px; color: var(--err); font: 700 15px var(--display); font-style: normal; letter-spacing: .06em; text-transform: uppercase; }
+  .say::after { content: ""; position: absolute; left: 50%; bottom: -12px; width: 18px; height: 18px; background: var(--card);
+    border-right: var(--line); border-bottom: var(--line); transform: translateX(-50%) rotate(45deg); }
+  .hello { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); color: var(--soft); font: 600 21px var(--display); white-space: nowrap; }
+  .said { flex: none; display: flex; align-items: center; gap: 14px; min-height: 62px; padding: 8px 20px; border-top: var(--line); }
+  .said > span { flex: none; color: var(--soft); font-size: 15px; line-height: 1.2; }
+  .out { flex: 1; min-width: 0; }
+  .out .text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font: 15px/1.4 var(--mono); color: var(--soft); }
+  .said-row { display: flex; align-items: center; gap: 10px; }
+  .said-row + .said-row { margin-top: 4px; }
+  .said-row > b { flex: none; width: 56px; font: 700 16px var(--display); }
+  .said-row > b.hint { color: var(--before); }
+  .said-row .strip { max-height: 28px; }
+  .said-row .text { -webkit-line-clamp: 1; }
+
+  /* Команды протокола робота — значками */
+  .ic { width: 26px; height: 26px; flex: none; padding: 3px; border-radius: 6px; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
+  .ic.move { background: var(--ink); stroke: var(--card); }
+  .ic.turn { background: var(--card); stroke: var(--ink); box-shadow: inset 0 0 0 1.6px var(--ink); }
+  .ic.look { background: var(--accent); stroke: var(--card); }
+  .ic.unknown { background: var(--err-bg); box-shadow: inset 0 0 0 1.6px var(--err); }
+  .ic.unknown text { fill: var(--err); stroke: none; font: 700 16px var(--display); }
+  .ic.now { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; max-height: 58px; overflow: hidden; }
+  .strip .more { margin-left: 4px; color: var(--soft); font: 600 16px var(--display); }
+
+  /* Поле: плитка, путь, робот */
+  .robot .tile { fill: none; stroke: rgba(35, 38, 77, .09); stroke-width: 2; }
+  .robot .start { fill: rgba(242, 211, 122, .45); stroke: var(--soft); stroke-width: 2; stroke-dasharray: 5 5; }
+  .robot .goal { fill: none; stroke: var(--soft); stroke-width: 3.5; stroke-dasharray: 2 9; stroke-linecap: round; opacity: .7; }
+  .robot .ghost { fill: none; stroke: var(--soft); stroke-width: 2.5; stroke-dasharray: 5 5; opacity: .75; }
+  .robot .walk { stroke: var(--ink); stroke-width: 5.5; stroke-linecap: round; fill: none; }
+  .robot .run { stroke: var(--ink); stroke-width: 12; stroke-linecap: round; fill: none; opacity: .9; }
+  .robot .run2 { stroke: var(--card); stroke-width: 3; stroke-linecap: round; fill: none; }
+  .robot .jump { stroke: var(--ink); stroke-width: 4.5; fill: none; stroke-dasharray: 9 7; stroke-linecap: round; }
+  .robot .land { fill: var(--ink); }
+  .robot .beam { fill: var(--accent); opacity: .3; }
+  .robot .hint .walk, .robot .hint .run, .robot .hint .jump { stroke: var(--before); }   /* след мозга «до» — серый */
+  .robot .hint .land, .robot .hint .beam { fill: var(--before); }
+  .robot.noghost .goal, .robot.noghost .ghost { display: none; }
+  .bot, .tag { transition: transform .26s ease-in-out; }
+  .bot.hop { animation: hop .3s; }
+  @keyframes hop { 50% { scale: 1.3; } }
+  .bot .body, .bot .tread { fill: var(--ink); }
+  .bot .visor { fill: var(--mustard); }
+  .bot.hint .body, .bot.hint .tread { fill: var(--before); }
+  .bot.hint .visor { fill: var(--beige); }
+  .bot .antenna { fill: var(--accent); }
+  .bot.think .antenna { animation: blink .45s infinite; }
+  .bot .happy, .bot .sad { display: none; }
+  .bot.ok .happy, .bot.bad .sad { display: inline; }
+  .bot.ok .eyes, .bot.bad .eyes { display: none; }
+  .tag .label { font: 700 20px var(--display); fill: var(--ink); paint-order: stroke; stroke: #efe9dd; stroke-width: 6px; }
+  .tag .label.hint { fill: #5d6290; }
+  .huh { font: 700 34px var(--display); fill: var(--err); animation: bob 1s ease-in-out infinite; }
+  @keyframes bob { 50% { translate: 0 -6px; } }
+
+  /* Мозг и канал связи */
+  .side { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .brain { flex: none; padding: 14px 18px 16px; }
+  .brains { display: flex; margin-top: 10px; border: var(--line); border-radius: 12px; overflow: hidden; }
+  .brains button { flex: 1; padding: 8px 6px; border: none; background: var(--card); font: 600 17px var(--display); }
+  .brains button + button { border-left: var(--line); }
+  .brains button[aria-pressed="true"] { background: var(--tone); }
+  [data-brain="hint"] { --tone: var(--beige); } [data-brain="tuned"] { --tone: var(--mustard); }
+  [data-brain="both"] { --tone: linear-gradient(90deg, var(--beige) 50%, var(--mustard) 50%); }
+  .brain-chip { padding: 3px 12px; border: var(--line); border-radius: 10px; background: var(--tone); font: 700 17px var(--display); white-space: nowrap; }
+  .brain-sub { margin-top: 8px; color: var(--soft); font-size: 17px; }
+  .ckpt { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 16px; white-space: nowrap; }
+  .ckpt b { font: 700 20px var(--display); }
+  .ckpt input { flex: 1; accent-color: var(--ink); }
+  .log { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 12px; }
+  .log-list { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; scrollbar-width: thin; }
+  .msg { display: grid; grid-template-columns: 30px 1fr; gap: 2px 8px; align-items: start; margin-bottom: 8px; font-size: 16px; }
+  .msg > i { font-style: normal; font-size: 20px; line-height: 1.3; }
+  .msg small { grid-column: 2; color: var(--soft); font-size: 13px; line-height: 1.1; }
+  .msg .body { grid-column: 2; min-width: 0; }
+  .msg.you .body { font: 600 16px var(--mono); }
+  .msg .body .text { color: var(--soft); font-style: italic; overflow-wrap: anywhere; }
+  .msg .strip { max-height: none; }
+  .msg .strip .ic { width: 20px; height: 20px; padding: 2px; border-radius: 5px; }
+  .msg.robot.ok .body { font-weight: 700; }
+  .msg.robot.bad .body { color: var(--err); font-weight: 700; }
+  .msg.sys .body { color: var(--soft); }
+
+  /* Команда */
+  .command { flex: none; display: flex; align-items: center; gap: 14px; }
+  .command input {
+    flex: 1; min-width: 0; padding: 10px 18px; border: var(--line); border-radius: 12px; background: var(--card);
+    font: 22px var(--mono); box-shadow: 3px 3px 0 var(--ink);
+  }
+  .words { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .words button {                          /* плитки-слова: фраза собирается кликами, как в детском конструкторе программ */
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 8px; border: var(--line); border-radius: 10px;
+    background: var(--card); box-shadow: 2px 2px 0 var(--ink); font: 600 18px var(--mono);
+  }
+  .words button:not(:disabled):hover { background: var(--mustard); }
+  .words button:not(:disabled):active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+  .words button .ic { width: 22px; height: 22px; }
+  .words button.plain { padding-left: 12px; }
+  .words .sep { width: 2px; height: 26px; margin: 0 4px; background: var(--faint); }
+  .chips { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .chips span { color: var(--soft); font-size: 16px; }
+  .chips button { padding: 3px 12px; border: 2px solid var(--ink); border-radius: 18px; background: var(--card); font: 16px var(--mono); }
+  .chips button:not(:disabled):hover { background: var(--mustard); }
+
+  /* Обучение мозга */
+  .train { flex: none; display: flex; align-items: center; gap: 22px; min-height: 78px; padding: 10px 20px; }
+  .train .info { flex: 1; min-width: 0; }
+  .train .line { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; font-size: 18px; }
+  .train .line b { font: 700 24px var(--display); }
+  .meter { height: 12px; margin-top: 6px; border: var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+  .meter i { display: block; height: 100%; width: 0; background: var(--mustard); transition: width .4s; }
+  .example { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 8px; background: var(--read); font: 15px var(--mono); }
+  .example .ic { width: 22px; height: 22px; }
+  .warn { color: var(--err); font-weight: 600; }
+  .spark { flex: none; display: flex; align-items: center; gap: 12px; }
+  .spark svg { width: 200px; height: 54px; }
+  .spark path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linejoin: round; }
+  .spark .num { font: 700 24px var(--display); white-space: nowrap; }
+  .spark small { display: block; color: var(--soft); font: 14px "Segoe UI", sans-serif; }
+  .train .tools { flex: none; display: flex; flex-direction: column; gap: 8px; }
+  .train .tools .ghost { padding: 4px 14px; font-size: 17px; }
+
+  /* Окна поверх: экзамен, как это работает, параметры */
+  .overlay { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 30px; background: rgba(35, 38, 77, .45); }
+  .dialog {
+    width: min(1400px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 14px; padding: 20px 26px;
+    border: var(--line); border-radius: 18px; background: var(--card); box-shadow: 6px 6px 0 var(--ink); overflow: hidden;
+  }
+  .dialog > header h2 { font: 700 28px var(--display); letter-spacing: 0; text-transform: none; }
+  .dialog .close { margin-left: auto; }
+  .scores { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+  .score { min-width: 180px; padding: 6px 16px; border: var(--line); border-radius: 12px; background: var(--tone); }
+  .score b { display: block; font: 700 36px/1.05 var(--display); }
+  .score span { font-size: 15px; font-weight: 600; }
+  .v { padding: 2px 10px; border: none; border-radius: 6px; font-size: 16px; font-weight: 700; white-space: nowrap; }
+  .v.better { background: var(--mustard); } .v.same { background: var(--read); color: var(--soft); } .v.worse { background: var(--err-bg); color: var(--err); }
+  button.v[aria-pressed="true"] { outline: 2.5px solid var(--ink); outline-offset: 1px; }
+  .table-box { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+  table { width: 100%; border-collapse: collapse; font-size: 17px; }
+  th { position: sticky; top: 0; z-index: 1; padding: 6px 10px; background: var(--card); font: 700 15px var(--display); letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+  th.m { border-bottom: 4px solid var(--tone); }
+  td { padding: 4px 10px; border-top: 2px solid var(--faint); vertical-align: middle; }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: #faf6ee; }
+  td.cmd { font: 600 16px var(--mono); }
+  td.cmd small { display: block; color: var(--soft); font: 14px "Segoe UI", sans-serif; }
+  .cell { display: flex; align-items: center; gap: 10px; }
+  .thumb { width: 96px; height: 54px; flex: none; border-radius: 8px; background: #efe9dd; }
+  .cell .talk { max-width: 170px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--soft); font-size: 14px; font-style: italic; }
+  .ok-mark, .no-mark { font: 700 22px var(--display); }
+  .no-mark { color: var(--err); }
+  .how { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .how > div { padding: 16px 18px; border: var(--line); border-radius: 14px; background: var(--paper); }
+  .how h3 { margin: 0 0 12px; font: 700 21px var(--display); }
+  .how .big { font: 700 42px/1 var(--display); }
+  .how .acts { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; font: 15px var(--mono); }
+  .share { display: flex; height: 40px; margin: 12px 0 0; border: var(--line); border-radius: 10px; overflow: hidden; }
+  .share .frozen { flex: 1; display: flex; align-items: center; padding-left: 12px; background: repeating-linear-gradient(45deg, #e3dfee 0 10px, #ece8f4 10px 20px); font-size: 15px; font-weight: 600; }
+  .share .lora { flex: none; width: 8px; background: var(--mustard); border-left: var(--line); }
+  .how svg.curve { width: 100%; height: 100px; }
+  .how svg.curve path { fill: none; stroke: var(--ink); stroke-width: 3.5; }
+  .terms { display: grid; grid-template-columns: repeat(4, auto 1fr); gap: 6px 14px; font-size: 17px; }
+  .terms b { white-space: nowrap; }
+  .terms span { color: var(--soft); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; font-size: 18px; }
+  .kv b { white-space: nowrap; }
+</style>
+</head>
+<body>
+<header>
+  <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+    <path d="M24 4v7" stroke="#23264d" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="24" cy="5" r="4" fill="#e5603b" stroke="#23264d" stroke-width="2.5"/>
+    <rect x="7" y="12" width="34" height="28" rx="8" fill="#23264d"/>
+    <rect x="12" y="19" width="24" height="11" rx="5.5" fill="#f2d37a"/>
+    <circle cx="18.5" cy="24.5" r="2.6" fill="#23264d"/><circle cx="29.5" cy="24.5" r="2.6" fill="#23264d"/>
+    <path d="M17 35h14" stroke="#fffdf9" stroke-width="2.5" stroke-linecap="round"/>
+  </svg>
+  <h1>Робот на нейросети</h1>
+  <a class="ghost press switch" href="/assistant" title="Второй проект: дообучение на одном примере">⇄ Ассистент</a>
+  <nav class="tabs" id="tabs"><button type="button" data-view="robot" aria-current="true">Робот</button><button type="button" data-view="data">Параметры обучения</button></nav>
+  <span class="chip" id="model-chip"></span>
+  <span class="grow"></span>
+  <button class="ghost press" id="exam-btn">Экзамен · 20 команд<b id="exam-score"></b></button>
+  <button class="round press" id="how-btn" aria-label="Как это работает">?</button>
+</header>
+
+<div class="view" id="view-robot">
+<main class="app">
+  <section class="card world">
+    <div class="world-head">
+      <h2>Мир робота</h2>
+      <span class="brain-chip" id="brain-chip"></span>
+      <span class="status" id="status">ждёт команду</span>
+      <span class="grow"></span>
+      <label class="toggle"><input type="checkbox" id="ghost" checked>правильный путь</label>
+      <button class="round press" id="replay" aria-label="Повторить">↻</button>
+    </div>
+    <div class="stage">
+      <svg class="field robot" id="field"></svg>
+      <div class="say" id="say" hidden></div>
+      <div class="hello" id="hello">Соберите фразу из слов внизу — мозг переведёт её роботу</div>
+    </div>
+    <div class="said"><span>мозг →<br>робот</span><div class="out" id="out"></div></div>
+  </section>
+
+  <aside class="side">
+    <section class="card brain">
+      <h2>Мозг робота</h2>
+      <div class="brains" id="brains">
+        <button type="button" data-brain="hint">До дообучения</button>
+        <button type="button" data-brain="tuned">После</button>
+        <button type="button" data-brain="both">До и после</button>
+      </div>
+      <div class="brain-sub" id="brain-sub"></div>
+      <label class="ckpt" id="ckpt-box">после <b id="ckpt-label"></b> шагов обучения <input type="range" id="ckpt" min="0" max="0" value="0"></label>
+    </section>
+    <section class="card log">
+      <h2>Канал связи</h2>
+      <div class="log-list" id="log"></div>
+    </section>
+  </aside>
+</main>
+
+<form class="command" id="command">
+  <input id="cmd" autocomplete="off" placeholder="скажите роботу, что сделать: соберите фразу из слов ниже или напишите сами">
+  <button class="main press" id="go">▶ Отправить</button>
+</form>
+<div class="words" id="words"></div>
+<div class="chips" id="chips"></div>
+</div>
+
+<div class="view" id="view-data" hidden>
+  <div class="app">
+    <section class="card examples">
+      <div class="ex-head"><h2>Примеры, которые увидела модель</h2><b id="ex-count"></b><span class="soft" id="ex-pool"></span>
+        <span class="soft" style="margin-left: auto; font-size: 16px">нажмите на пример — посмотреть, как модель ему училась</span></div>
+      <div class="ex-words" id="ex-words"></div>
+      <div class="ex-grid" id="ex-grid"></div>
+      <button class="ghost press ex-more" id="ex-more">Показать ещё</button>
+    </section>
+    <aside class="side data-side">
+      <section class="card">
+        <h2>Длина примеров — команд в ответе</h2>
+        <div class="hist" id="hist"></div>
+        <p class="note" id="hist-note"></p>
+      </section>
+      <section class="card">
+        <h2>Как пример видит модель</h2>
+        <pre class="raw" id="raw"></pre>
+        <div class="down">↓ шаблон чата Qwen3.5</div>
+        <div class="tokens" id="tokens"></div>
+        <div class="tk-legend" id="tk-legend"></div>
+      </section>
+      <section class="card">
+        <h2 style="display: flex; align-items: center">Как учили<button class="ghost press" id="facts-all" style="margin-left: auto; padding: 2px 12px; font-size: 16px">Все параметры</button></h2>
+        <div class="facts" id="facts"></div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<footer class="card train">
+  <button class="main press" id="train-btn"></button>
+  <div class="info" id="train-info"></div>
+  <div class="spark" id="spark"></div>
+  <div class="tools">
+    <button class="ghost press" id="params-btn" hidden>Параметры</button>
+    <button class="ghost press" id="reset-btn" hidden title="Мозг вернётся к состоянию до обучения; адаптер — в архив data/archive">↺ Сбросить</button>
+  </div>
+</footer>
+
+<div class="overlay" id="exam" hidden>
+  <div class="dialog">
+    <header style="display: flex; align-items: center; gap: 16px">
+      <h2>Экзамен: 20 команд, которых мозг не видел</h2>
+      <button class="ghost press" id="exam-run">▶ Провести заново</button>
+      <button class="round press close" data-close aria-label="Закрыть">✕</button>
+    </header>
+    <div class="scores" id="exam-scores"></div>
+    <div class="table-box"><table id="exam-table"></table></div>
+  </div>
+</div>
+
+<div class="overlay" id="how" hidden>
+  <div class="dialog">
+    <header style="display: flex; align-items: center"><h2>Как мозг научился управлять роботом</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="how" id="how-cards"></div>
+    <div class="terms">
+      <b>Дообучение</b><span>доучиваем готовую модель на примерах</span>
+      <b>LoRA</b><span>маленькие обучаемые вставки в слои</span>
+      <b>Лосс</b><span>ошибка модели на ответе</span>
+      <b>Адаптер</b><span>файл с обученными вставками</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="inside" hidden>
+  <div class="dialog inside">
+    <header style="display: flex; align-items: center; gap: 16px">
+      <h2>Как модель учится на примере</h2>
+      <button class="ghost press" id="in-robot" style="margin-left: auto">▶ На робота</button>
+      <button class="round press" data-close aria-label="Закрыть">✕</button>
+    </header>
+    <div class="story">
+      <section class="frame"><h3><i>1</i>Пример</h3><div class="pic" id="st-pair"></div>
+        <p>Фраза и правильный ответ — одна пара из 2 000.</p></section>
+      <span class="next">→</span>
+      <section class="frame"><h3><i>2</i>Ответ по кусочкам</h3><div class="pic" id="st-pieces"></div>
+        <p>Модель пишет ответ кусочками и каждый раз угадывает следующий.</p></section>
+      <span class="next">→</span>
+      <section class="frame before"><h3><i>3</i>До обучения</h3><div class="pic" id="st-before"></div>
+        <p id="st-before-note"></p></section>
+      <span class="next">→</span>
+      <section class="frame after"><h3><i>4</i>После обучения</h3><div class="pic" id="st-after"></div>
+        <p id="st-after-note"></p></section>
+    </div>
+    <p class="story-sum">Столбик — насколько модель уверена в правильном кусочке. Обучение 250 раз чуть сдвигало вставки LoRA,
+      чтобы правильные кусочки становились вероятнее.</p>
+    <details class="in-more">
+      <summary>Подробнее: что именно уходит в модель</summary>
+      <div class="in-top">
+        <section class="in-card"><h3>Текст в шаблоне чата Qwen3.5</h3><pre class="in-text" id="in-text"></pre></section>
+        <section class="in-card"><h3>Когда модель его видела</h3><div class="in-when" id="in-when"></div></section>
+      </div>
+      <section class="in-card"><h3>Токены — модель получает их номера</h3><div class="in-tokens" id="in-tokens"></div>
+        <div class="tk-legend"><span class="tk">серое — только читает</span><span class="tk learn">жёлтое — учится писать</span></div></section>
+    </details>
+  </div>
+</div>
+
+<div class="overlay" id="params" hidden>
+  <div class="dialog" style="width: min(880px, 100%)">
+    <header style="display: flex; align-items: center"><h2>Параметры дообучения</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="kv" id="passport"></div>
+  </div>
+</div>
+
+<script>
+const PATHS = {
+  I_WALK: "M5 12l7-7 7 7M12 19V5",
+  I_RUN: "M17 11l-5-5-5 5M17 18l-5-5-5 5",
+  I_JUMP: "M4 18Q12 2 20 18M15.8 15.3L20 18l.3-5",
+  I_LOOK: "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6z",
+  I_TURN_LEFT: "M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11",
+  I_TURN_RIGHT: "M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13",
+};
+const KIND = { I_WALK: "move", I_RUN: "move", I_JUMP: "move", I_LOOK: "look", I_TURN_LEFT: "turn", I_TURN_RIGHT: "turn" };
+const NAME = { I_WALK: "шаг", I_RUN: "рывок на 2 клетки", I_JUMP: "прыжок", I_LOOK: "взгляд", I_TURN_LEFT: "поворот налево", I_TURN_RIGHT: "поворот направо" };
+const BRAINS = {
+  base: { title: "Без инструкции", tag: "без инструкции", sub: "Модель как есть — не знает, что управляет роботом." },
+  hint: { title: "До дообучения", tag: "до", sub: "Модель + инструкция в промпте: правила протокола и 7 примеров. Так робота подключили бы без обучения." },
+  tuned: { title: "После дообучения", tag: "после", sub: "Та же модель + адаптер LoRA, обученный на 2 000 примерах. Инструкция больше не нужна." },
+  both: { title: "До и после", tag: "", sub: "Одну фразу получают оба мозга: серый робот — до дообучения, тёмный — после." },
+};
+const TONE = { base: "var(--read)", hint: "var(--beige)", tuned: "var(--mustard)", both: "linear-gradient(90deg, var(--beige) 50%, var(--mustard) 50%)" };
+const WORDS = [  // язык робота — 13 слов; у глаголов значок команды, в подсказке смысл
+  [["walk", "I_WALK", "шаг"], ["run", "I_RUN", "рывок на 2 клетки"], ["jump", "I_JUMP", "прыжок"], ["look", "I_LOOK", "взгляд"], ["turn", "", "поворот"]],
+  [["left", "", "налево: сначала поворот"], ["right", "", "направо: сначала поворот"]],
+  [["opposite", "", "разворот: два поворота"], ["around", "", "по кругу: 4 раза"]],
+  [["twice", "", "дважды"], ["thrice", "", "трижды"]],
+  [["and", "", "потом"], ["after", "", "после: сначала вторая часть"]],
+];
+const VERDICT = { better: "лучше", same: "так же", worse: "хуже" };
+const EXAMPLES = ["jump twice and turn left", "run around right and look left", "walk left twice after jump around right",
+  "What is the capital of France? Answer in one word.", "swim twice"];
+const S = { state: null, brain: "hint", step: null, busy: null, asking: false, live: null, exam: null, filter: null, shown: null };
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const num = (x, d = 0) => x.toLocaleString("ru-RU", { maximumFractionDigits: d, minimumFractionDigits: d });
+const minutes = s => s < 60 ? `${Math.round(s)} с` : `${Math.floor(s / 60)} мин ${String(Math.round(s % 60)).padStart(2, "0")} с`;
+const acts = text => String(text).match(/I_(?:WALK|RUN|JUMP|LOOK|TURN_LEFT|TURN_RIGHT)/g) || [];  // что выполнит робот
+const tokens = text => String(text).match(/\bI_[A-Z_]+/g) || [];                                  // и выдуманные: I_SWIM
+const isClean = text => /^(I(_[A-Z_]*)?\s*)+$/.test(String(text).trim());  // только команды; хвост «I_TUR» — обрезан лимитом
+const icon = a => PATHS[a] ? `<svg class="ic ${KIND[a]}" viewBox="0 0 24 24"><title>${a} — ${NAME[a]}</title><path d="${PATHS[a]}"/></svg>`
+  : `<svg class="ic unknown" viewBox="0 0 24 24"><title>${esc(a)} — такой команды у робота нет</title><text x="12" y="18" text-anchor="middle">?</text></svg>`;
+const strip = (list, max = Infinity) =>
+  list.slice(0, max).map(icon).join("") + (list.length > max ? `<span class="more">+${list.length - max}</span>` : "");
+const mark = ok => ok == null ? "" : ok ? '<span class="ok-mark">✓</span>' : '<span class="no-mark">✗</span>';
+const short = (s, n) => (s = String(s).replace(/[*#`]+/g, "").replace(/\s+/g, " ").trim()).length > n ? s.slice(0, n - 1) + "…" : s;
+const finalStep = () => S.state.checkpoints.at(-1);
+const idle = () => drawField($("field"), [{ list: [] }], null);
+
+/* ---------- загрузка и поток событий ---------- */
+async function load() {
+  await refresh(true);
+  $("model-chip").textContent = `мозг — ${S.state.model.name.split("/")[1]} на процессоре ноутбука`;
+  $("words").innerHTML = WORDS.map(group => group.map(([w, a, t]) =>
+    `<button type="button" class="${a ? "" : "plain"}" data-word="${w}" title="${t}">${a ? icon(a) : ""}${w}</button>`).join(""))
+    .join('<span class="sep"></span>') + `<span class="sep"></span><button type="button" class="plain" data-word="⌫" title="стереть последнее слово">⌫</button>`;
+  $("chips").innerHTML = `<span>Или готовые фразы:</span>` + EXAMPLES.map(t => `<button type="button">${esc(t)}</button>`).join("");
+  idle();
+  log("sys", "🔌", "Робот на связи. Мозг переводит фразу в команды протокола: " + strip(Object.keys(PATHS)));
+  renderAll();
+  if (S.state.job.running && S.state.job.kind !== "assistant") { S.busy = S.state.job.kind; follow(); }
+}
+
+async function refresh(initial = false) {
+  S.state = await (await fetch("/api/state")).json();
+  S.exam = S.state.compare;
+  S.step = S.state.ready ? finalStep() : null;
+  if (initial || (!S.state.ready && S.brain !== "hint")) S.brain = S.state.ready ? "tuned" : "hint";  // выбор пользователя не трогаем
+}
+
+async function lines(response, onEvent) {
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let i;
+    while ((i = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, i);
+      buffer = buffer.slice(i + 1);
+      if (line.trim()) onEvent(JSON.parse(line));
+    }
+  }
+}
+
+async function follow() {
+  renderAll();
+  await lines(await fetch("/api/events?since=0"), e => (S.busy === "compare" ? onExam : onTrain)(e));
+  const kind = S.busy;
+  S.busy = null;
+  S.live = null;
+  await refresh();
+  if (kind === "train" && S.state.ready) S.brain = "tuned";  // только что обученный мозг — сразу в деле
+  renderAll();
+}
+
+async function startJob(kind) {
+  const response = await fetch(`/api/${kind}`, { method: "POST" });
+  if (!response.ok) { alert((await response.json()).detail); return; }
+  S.busy = kind;
+  follow();
+}
+
+/* ---------- команда роботу ---------- */
+async function send(text) {
+  const brains = S.brain === "both" ? ["hint", "tuned"] : [S.brain];
+  if (!text || S.busy || S.asking || (brains.includes("tuned") && !S.state.ready)) return;
+  S.asking = true;
+  renderControls();
+  const step = S.step !== finalStep() ? S.step : null;
+  log("you", "👤", esc(text));
+  setStatus("wait", brains.length > 1 ? "мозги думают" : "мозг думает");
+  $("say").hidden = $("hello").hidden = true;
+  $("out").innerHTML = `<span class="soft">…</span>`;
+  drawField($("field"), brains.map(brain => ({ list: [], kind: brains.length > 1 ? brain : "" })), null);
+  $("field").querySelectorAll(".bot").forEach(b => b.classList.add("think"));
+  try {
+    const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, step, modes: brains }) });
+    if (!response.ok) throw new Error((await response.json()).detail);
+    let expect = null;
+    const results = [];
+    await lines(response, e => {
+      if (e.type === "start") expect = e.expect;
+      if (e.type === "answer") results.push({ brain: e.mode, answer: e.answer, step: e.mode === "tuned" ? step : null });
+    });
+    perform(text, results, expect);
+  } catch (err) {
+    setStatus("bad", "нет связи с мозгом");
+    log("robot bad", "🤖", esc(err.message));
+  } finally {
+    S.asking = false;
+    renderControls();
+  }
+}
+
+function outcome(answer, expect) {
+  const list = acts(answer), invented = tokens(answer).filter(t => !PATHS[t]);
+  if (!list.length) {
+    if (invented.length) return ["bad", "не знаю такой команды", `❓ не знаю команду ${esc(invented[0])} — стою`];
+    return ["bad", "не понял", "❓ это не команды — стою на месте"];
+  }
+  if (Array.isArray(expect) && expect.length) {
+    return list.join() === expect.join() ? ["ok", "✓ выполнил верно", `✓ выполнил ${list.length} команд — верно`]
+      : ["bad", "✗ ошибся", `✗ выполнил ${list.length} команд, а нужно ${expect.length} других`];
+  }
+  return ["", "выполнил", `выполнил ${list.length} команд`];
+}
+
+function perform(text, results, expect) {
+  for (const r of results) {
+    const who = `мозг (${BRAINS[r.brain].title.toLowerCase()}${r.brain === "tuned" && r.step != null ? `, шаг ${r.step}` : ""}) → робот`;
+    log("brain", "🧠", isClean(r.answer) ? `<div class="strip">${strip(tokens(r.answer))}</div>` : `<div class="text">«${esc(short(r.answer, 160))}»</div>`, who);
+  }
+  animate(text, results, expect, true);
+}
+
+function animate(text, results, expect, report = false, still = false) {
+  S.shown = { text, results, expect };
+  const many = results.length > 1;
+  const talker = results.find(r => !acts(r.answer).length && !isClean(r.answer) && String(r.answer).trim());
+  $("hello").hidden = true;
+  $("say").hidden = !talker;
+  if (talker) $("say").innerHTML = `<b>${many ? `${BRAINS[talker.brain].tag}: ` : ""}это не команды робота</b>«${esc(short(talker.answer, 170))}»`;
+  $("out").innerHTML = results.map(r => {
+    const body = isClean(r.answer) ? `<div class="strip">${strip(tokens(r.answer), 40)}</div>` : `<div class="text">${esc(String(r.answer).trim() || "(пусто)")}</div>`;
+    return many ? `<div class="said-row"><b class="${r.brain}">${BRAINS[r.brain].tag}</b>${body}</div>` : body;
+  }).join("");
+  const rows = many ? [...$("out").querySelectorAll(".said-row")] : [$("out")];
+  const goal = Array.isArray(expect) && expect.length ? expect : null;
+  const runs = results.map(r => ({ list: acts(r.answer), kind: many ? r.brain : "", huh: !acts(r.answer).length }));
+  if (!still) setStatus("", "выполняет");
+  drawField($("field"), runs, goal, { still, strips: rows.map(row => row.querySelector(".strip")), done: bots => {
+    const outs = results.map(r => outcome(r.answer, expect));
+    outs.forEach(([tone], k) => tone && bots[k].classList.add(tone));
+    if (many) setStatus("", results.map((r, k) => `${BRAINS[r.brain].tag} ${{ ok: "✓", bad: "✗" }[outs[k][0]] || "•"}`).join("  ·  "));
+    else setStatus(outs[0][0], outs[0][1]);
+    if (report) results.forEach((r, k) => log(`robot ${outs[k][0]}`, "🤖", (many ? `<b>${BRAINS[r.brain].tag}:</b> ` : "") + outs[k][2]));
+  } });
+}
+
+function setStatus(tone, text) {
+  $("status").className = `status ${tone}`;
+  $("status").textContent = text;
+}
+
+function log(kind, avatar, html, label) {
+  const list = $("log");
+  list.insertAdjacentHTML("beforeend", `<div class="msg ${kind}"><i>${avatar}</i>${label ? `<small>${label}</small>` : ""}<div class="body">${html}</div></div>`);
+  while (list.children.length > 60) list.firstElementChild.remove();
+  list.scrollTop = list.scrollHeight;
+}
+
+/* ---------- поле: плитка, путь, роботы ---------- */
+const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+const CELL = 52;
+
+function simulate(list) {
+  let x = 0, y = 0, d = 0, angle = 0;
+  const frames = [{ x, y, d, angle, a: null }];
+  for (const a of list) {
+    const from = { x, y };
+    if (a === "I_TURN_LEFT") { d = (d + 3) % 4; angle -= 90; }
+    else if (a === "I_TURN_RIGHT") { d = (d + 1) % 4; angle += 90; }
+    else if (KIND[a] === "move") { const k = a === "I_RUN" ? 2 : 1; x += DIRS[d][0] * k; y += DIRS[d][1] * k; }
+    frames.push({ x, y, d, angle, a, from });
+  }
+  return frames;
+}
+
+function segment(f) {
+  const x1 = f.from.x * CELL, y1 = f.from.y * CELL, x2 = f.x * CELL, y2 = f.y * CELL;
+  if (f.a === "I_WALK") return `<line class="walk" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+  if (f.a === "I_RUN") return `<line class="run" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><line class="run2" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+  if (f.a === "I_JUMP") {
+    const [dx, dy] = DIRS[f.d], mx = (x1 + x2) / 2 - dy * 22, my = (y1 + y2) / 2 + dx * 22;
+    return `<path class="jump" d="M${x1} ${y1}Q${mx} ${my} ${x2} ${y2}"/><circle class="land" cx="${x2}" cy="${y2}" r="4"/>`;
+  }
+  if (f.a === "I_LOOK") {
+    const [dx, dy] = DIRS[f.d], px = -dy, py = dx, len = CELL * 1.7, w = CELL * .62;
+    return `<path class="beam" d="M${x1 + dx * 18} ${y1 + dy * 18}L${x1 + dx * len + px * w} ${y1 + dy * len + py * w}L${x1 + dx * len - px * w} ${y1 + dy * len - py * w}Z"/>`;
+  }
+  return "";
+}
+
+const BOT = `<ellipse cx="4" cy="7" rx="25" ry="22" fill="rgba(35,38,77,.18)"/>
+  <rect class="tread" x="-29" y="-15" width="9" height="30" rx="4.5"/><rect class="tread" x="20" y="-15" width="9" height="30" rx="4.5"/>
+  <circle class="body" r="23"/><rect class="visor" x="-16" y="-19" width="32" height="15" rx="7.5"/>
+  <g class="eyes" fill="#23264d"><circle cx="-6.5" cy="-11.5" r="2.8"/><circle cx="6.5" cy="-11.5" r="2.8"/></g>
+  <g class="happy" stroke="#23264d" stroke-width="2.4" fill="none" stroke-linecap="round"><path d="M-10 -10q3.5-5 7 0M3 -10q3.5-5 7 0"/></g>
+  <g class="sad" stroke="#b42318" stroke-width="2.4" stroke-linecap="round"><path d="M-9.5 -14.5l5 5M-9.5 -9.5l5-5M4.5 -14.5l5 5M4.5 -9.5l5-5"/></g>
+  <circle class="antenna" cy="7" r="5"/><path d="M-8 -26L0 -36 8 -26Z" fill="#e5603b"/>`;
+
+/* runs — роботы на одном поле: {list — команды, kind — hint/tuned в режиме «до и после», huh — не понял} */
+function drawField(svg, runs, expect, play = null) {
+  clearInterval(svg._timer);
+  const sims = runs.map(r => simulate(r.list)), goal = expect ? simulate(expect) : null;
+  const pts = sims.flat().concat(goal || []);
+  const box = svg.getBoundingClientRect(), ratio = box.width && box.height ? box.width / box.height : 1.8;
+  const huh = runs.some(r => r.huh), many = runs.length > 1;
+  const minX = Math.min(...pts.map(p => p.x)), maxX = Math.max(...pts.map(p => p.x));
+  const minY = Math.min(...pts.map(p => p.y)), maxY = Math.max(...pts.map(p => p.y));
+  let w = Math.max(maxX - minX + 2, 8), h = Math.max(maxY - minY + 2, 5);
+  if (w / h < ratio) w = h * ratio; else h = w / ratio;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2 - (huh ? 1 : 0);
+  const vx = (cx - w / 2 - .5) * CELL, vy = (cy - h / 2 - .5) * CELL;
+  svg.setAttribute("viewBox", `${vx} ${vy} ${(w + 1) * CELL} ${(h + 1) * CELL}`);
+  const id = svg.id || (svg.id = "f" + Math.random().toString(36).slice(2));
+  const floor = `<defs><pattern id="${id}-tile" width="${CELL}" height="${CELL}" x="${-CELL / 2}" y="${-CELL / 2}" patternUnits="userSpaceOnUse">
+    <rect class="tile" x="1" y="1" width="${CELL - 2}" height="${CELL - 2}" rx="6"/></pattern></defs>
+    <rect x="${vx}" y="${vy}" width="${(w + 1) * CELL}" height="${(h + 1) * CELL}" fill="url(#${id}-tile)"/>`;
+  const goalPath = goal && goal.length > 1 ? `<path class="goal" d="${goal.map((f, i) => `${i ? "L" : "M"}${f.x * CELL} ${f.y * CELL}`).join("")}"/>` : "";
+  const end = goal && goal.at(-1);
+  const ghost = end ? `<g transform="translate(${end.x * CELL} ${end.y * CELL}) rotate(${end.angle})"><circle class="ghost" r="23"/><path class="ghost" d="M-8 -26L0 -36 8 -26Z"/></g>` : "";
+  const shift = r => many ? (r.kind === "hint" ? -30 : 30) : 0;   // подписи двух роботов не налезают друг на друга
+  const tags = runs.map(r => `<g class="tag">${many ? `<text class="label ${r.kind}" text-anchor="middle" x="${shift(r)}" y="-42">${BRAINS[r.kind].tag}</text>` : ""}
+    ${r.huh ? `<text class="huh" text-anchor="middle" x="${shift(r)}" y="${many ? -64 : -48}">?</text>` : ""}</g>`).join("");
+  svg.classList.toggle("noghost", !$("ghost").checked);
+  svg.innerHTML = `${floor}<circle class="start" r="27"/>${goalPath}${ghost}`
+    + runs.map(r => `<g class="trail ${r.kind || ""}"></g>`).join("")
+    + runs.map(r => `<g class="bot ${r.kind || ""}">${BOT}</g>`).join("") + tags;
+  const trails = [...svg.querySelectorAll(".trail")], bots = [...svg.querySelectorAll(".bot")], marks = [...svg.querySelectorAll(".tag")];
+  const place = (k, f) => {
+    bots[k].style.transform = `translate(${f.x * CELL}px, ${f.y * CELL}px) rotate(${f.angle}deg)`;
+    marks[k].style.transform = `translate(${f.x * CELL}px, ${f.y * CELL}px)`;
+  };
+  [...bots, ...marks].forEach(n => n.style.transition = "none");
+  if (!play || play.still) {
+    sims.forEach((sim, k) => { trails[k].innerHTML = sim.slice(1).map(segment).join(""); place(k, sim.at(-1)); });
+    if (play && play.done) play.done(bots);
+    return;
+  }
+  sims.forEach((sim, k) => place(k, sim[0]));
+  const icons = (play.strips || []).map(s => s ? [...s.querySelectorAll(".ic:not(.unknown)")] : []);
+  const longest = Math.max(...sims.map(s => s.length));
+  const ms = Math.max(140, Math.min(430, 7500 / Math.max(1, longest - 1)));
+  let i = 0;
+  svg._timer = setInterval(() => {
+    i++;
+    if (i >= longest) {
+      clearInterval(svg._timer);
+      icons.flat().forEach(n => n.classList.remove("now"));
+      if (play.done) play.done(bots);
+      return;
+    }
+    sims.forEach((sim, k) => {
+      if (i >= sim.length) return;
+      bots[k].style.transition = marks[k].style.transition = "";
+      trails[k].insertAdjacentHTML("beforeend", segment(sim[i]));
+      place(k, sim[i]);
+      if (sim[i].a === "I_JUMP") { bots[k].classList.remove("hop"); void bots[k].getBBox(); bots[k].classList.add("hop"); }
+      (icons[k] || []).forEach((n, j) => n.classList.toggle("now", j === i - 1));
+    });
+  }, ms);
+}
+
+/* ---------- дообучение мозга ---------- */
+function onTrain(e) {
+  if (e.type === "start") {
+    S.live = { total: e.total, probe: e.probes[1], steps: [], snapshots: [] };
+    $("cmd").value = S.live.probe.text;
+    log("sys", "🎓", `Дообучение началось: ${e.total} шагов по ${S.state.settings.batch} примеров. Робот будет пробовать команду «${esc(S.live.probe.text)}».`);
+  } else if (!S.live) {
+    return;
+  } else if (e.type === "step") {
+    S.live.steps.push([e.step, e.loss]);
+    S.live.seconds = e.seconds;
+    S.live.first ??= e.seconds;               // время первого шага: загрузка модели в оценку не идёт
+  } else if (e.type === "snapshot") {
+    S.live.snapshots.push(e);
+    perform(S.live.probe.text, [{ brain: e.step ? "tuned" : "base", answer: e.answers[1], step: e.step }], S.live.probe.expect);
+  } else if (e.type === "done") {
+    log("sys", "🎓", `Мозг дообучен за ${minutes(e.passport.seconds)} — адаптер ${num(e.passport.adapter_mb, 1)} МБ.`);
+  } else if (e.type === "stopped") {
+    log("sys", "🎓", "Обучение остановлено — прежний мозг на месте.");
+  } else if (e.type === "error") {
+    log("robot bad", "⚠️", esc(e.message));
+  }
+  if (e.type !== "end") renderTrain();
+}
+
+function smooth(steps, k = 0.15) {
+  let value = null;
+  return steps.map(([, loss]) => value = value == null ? loss : value + k * (loss - value));
+}
+
+function sparkline(steps, total) {
+  if (!steps.length) return "";
+  const sm = smooth(steps), top = Math.max(...sm), W = 200, H = 54;
+  const d = steps.map(([s], i) => `${i ? "L" : "M"}${(W * s / total).toFixed(1)} ${(4 + (H - 8) * (1 - sm[i] / top)).toFixed(1)}`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${d}" vector-effect="non-scaling-stroke"/></svg>
+    <div><div class="num">${num(sm[0], 2)} → ${num(sm.at(-1), 2)}</div><small>лосс — ошибка на ответе</small></div>`;
+}
+
+function renderTrain() {
+  const { state } = S, run = state.run;
+  const { epochs, batch } = state.settings, total = Math.ceil(state.dataset.train / batch) * epochs;
+  const live = S.busy === "train" ? S.live || { total, steps: [], snapshots: [] } : null;  // до события start — пустой
+  const button = $("train-btn"), info = $("train-info");
+  $("params-btn").hidden = !run || !!live;
+  $("reset-btn").hidden = !state.ready || !!live;
+  button.disabled = S.busy === "compare" || S.asking;
+  if (live) {
+    const step = live.steps.length ? live.steps.at(-1)[0] : 0;
+    const left = step > 1 ? (live.seconds - live.first) / (step - 1) * (live.total - step) : 0;
+    button.textContent = "■ Остановить";
+    button.className = "main press quiet";
+    const status = step > 1 ? `осталось ≈ ${minutes(left)}` : step ? "считаю скорость…" : "загружаю модель…";
+    info.innerHTML = `<div class="line"><b>Мозг учится: шаг ${step} из ${live.total}</b><span class="soft">${status}</span></div>
+      <div class="meter"><i style="width: ${step / live.total * 100}%"></i></div>`;
+    $("spark").innerHTML = sparkline(live.steps, live.total);
+    return;
+  }
+  const example = state.dataset.examples[1];
+  const teach = `<span class="example">${esc(example.command)} → ${strip(example.actions.split(" "), 6)}</span>`;
+  const memory = state.free < 7 ? `<span class="warn">свободно ${num(state.free, 1)} ГБ — закройте лишние программы</span>` : "";
+  button.className = run ? "main press quiet" : "main press";
+  button.textContent = run ? "🎓 Дообучить заново" : "🎓 Дообучить мозг";
+  if (run) {
+    info.innerHTML = `<div class="line"><b>Мозг дообучен ✓</b><span>${num(run.passport.train)} примеров · ${minutes(run.passport.seconds)} на процессоре</span>${memory}</div>
+      <div class="line soft" style="font-size: 16px; margin-top: 2px">примеры вида ${teach}</div>`;
+    $("spark").innerHTML = sparkline(run.steps, run.total);
+  } else {
+    info.innerHTML = `<div class="line"><b>Мозг не дообучен</b><span>покажем ему ${num(state.dataset.train)} примеров вида</span>${teach}<span class="soft">≈ ${Math.round(total * 6.7 / 60)} мин</span>${memory}</div>`;
+    $("spark").innerHTML = "";
+  }
+}
+
+function renderControls() {
+  const blocked = !!S.busy || S.asking;
+  ["cmd", "go"].forEach(id => $(id).disabled = blocked);
+  document.querySelectorAll("#chips button, #words button").forEach(b => b.disabled = blocked);
+  document.querySelectorAll("#brains button").forEach(b => {
+    const needs = b.dataset.brain !== "hint" && !S.state.ready;
+    b.setAttribute("aria-pressed", b.dataset.brain === S.brain);
+    b.disabled = blocked || needs;
+    b.title = needs ? "Сначала дообучите мозг — кнопка внизу" : "";
+  });
+  $("brain-chip").textContent = S.brain === "both" ? "мозги: до и после" : `мозг: ${BRAINS[S.brain].title.toLowerCase()}`;
+  $("brain-chip").style.setProperty("--tone", TONE[S.brain]);
+  $("brain-sub").textContent = BRAINS[S.brain].sub;
+  const steps = S.state.checkpoints;
+  $("ckpt-box").hidden = S.brain === "hint" || steps.length < 2;
+  $("ckpt").max = Math.max(0, steps.length - 1);
+  $("ckpt").value = Math.max(0, steps.indexOf(S.step));
+  $("ckpt").disabled = blocked;
+  $("ckpt-label").textContent = S.step ?? "";
+  $("exam-btn").disabled = !S.state.ready && !S.exam;
+  $("train-btn").disabled = S.busy === "compare" || S.asking;
+  $("reset-btn").disabled = blocked;
+}
+
+function renderAll() {
+  renderTrain();
+  renderControls();
+  const sum = S.exam && S.exam.summary;
+  $("exam-score").textContent = sum ? ` · ${sum.hint} → ${sum.tuned}` : "";
+  if (!$("exam").hidden) renderExam();
+  if (!$("view-data").hidden) renderData();
+}
+
+/* ---------- экзамен ---------- */
+function onExam(e) {
+  if (e.type === "start") S.exam = { queries: e.queries, answers: {} };
+  else if (e.type === "answers") S.exam.answers[e.mode] = e.answers;
+  else if (e.type === "done") S.exam = e.report;
+  else if (e.type === "error") alert(e.message);
+  if (e.type !== "end") renderExam();
+}
+
+function renderExam() {
+  const c = S.exam, live = S.busy === "compare";
+  $("exam-run").disabled = !!S.busy || S.asking || !S.state.ready;
+  $("exam-run").textContent = live ? "идёт экзамен…" : c ? "▶ Провести заново" : "▶ Провести экзамен";
+  if (!c) {
+    $("exam-scores").innerHTML = "";
+    $("exam-table").innerHTML = `<tr><td class="soft" style="padding: 40px; font-size: 22px">Экзамена ещё не было — нажмите «Провести экзамен» (≈ 2 мин)</td></tr>`;
+    return;
+  }
+  const modes = ["base", "hint", "tuned"];
+  const score = mode => {
+    const list = c.answers[mode];
+    return `<div class="score" style="--tone: ${TONE[mode]}"><b>${list ? `${list.filter(r => r.ok).length} / ${list.length}` : "…"}</b><span>${BRAINS[mode].title}</span></div>`;
+  };
+  const sum = c.summary;
+  $("exam-scores").innerHTML = modes.map(score).join("")
+    + (sum ? `<span class="grow"></span><span class="soft" style="font-size: 16px">после против до:</span>` + Object.entries(VERDICT).map(([v, t]) =>
+      `<button type="button" class="v ${v}" data-v="${v}" aria-pressed="${S.filter === v}">${t} ${sum[v]}</button>`).join("") : "");
+  const head = `<tr><th>Команда</th>${modes.map(m => `<th class="m" style="--tone: ${TONE[m]}">${BRAINS[m].title}</th>`).join("")}<th></th></tr>`;
+  const rows = c.queries.map((q, i) => {
+    if (S.filter && c.verdicts && c.verdicts[i] !== S.filter) return "";
+    return `<tr class="row" data-i="${i}"><td class="cmd">${esc(q.text)}${q.check ? `<small>${esc(q.check)}</small>` : ""}</td>
+      ${modes.map(m => `<td>${cell(i, m, live)}</td>`).join("")}
+      <td>${c.verdicts ? `<span class="v ${c.verdicts[i]}">${VERDICT[c.verdicts[i]]}</span>` : ""}</td></tr>`;
+  }).join("");
+  $("exam-table").innerHTML = head + rows;
+  $("exam-table").querySelectorAll("svg[data-i]").forEach(svg => {
+    const i = +svg.dataset.i, q = c.queries[i], r = c.answers[svg.dataset.m][i];
+    drawField(svg, [{ list: acts(r.answer) }], Array.isArray(q.expect) && q.expect.length ? q.expect : null);
+  });
+}
+
+function cell(i, mode, waiting) {
+  const r = S.exam.answers[mode] && S.exam.answers[mode][i];
+  if (!r) return `<span class="soft">${waiting ? "…" : ""}</span>`;
+  const body = acts(r.answer).length
+    ? `<svg class="thumb robot" data-i="${i}" data-m="${mode}"></svg>`   // ответ командами — мини-поле с путём
+    : `<span class="talk">💬 ${esc(short(r.answer, 40))}</span>`;
+  return `<div class="cell">${mark(r.ok)}${body}</div>`;
+}
+
+/* ---------- как это работает и параметры ---------- */
+function renderHow() {
+  const { dataset, model, run } = S.state;
+  const ex = dataset.examples[3], pct = model.trainable / model.total * 100;
+  const curve = run ? (() => {
+    const sm = smooth(run.steps), top = Math.max(...sm);
+    return `<svg class="curve" viewBox="0 0 300 100" preserveAspectRatio="none"><path vector-effect="non-scaling-stroke" d="${run.steps.map(([s], i) =>
+      `${i ? "L" : "M"}${(300 * s / run.total).toFixed(1)} ${(6 + 88 * (1 - sm[i] / top)).toFixed(1)}`).join("")}"/></svg>
+      <div class="big">${num(sm[0], 1)} → ${num(sm.at(-1), 2)}</div><div class="soft">${run.passport.steps} шагов · ${minutes(run.passport.seconds)} на процессоре</div>`;
+  })() : `<div class="soft">появится после дообучения</div>`;
+  $("how-cards").innerHTML = `
+    <div><h3>1 · Робот знает 6 команд</h3><div class="acts">${Object.keys(PATHS).map(a => `${icon(a)}<span>${a}</span>`).join("")}</div></div>
+    <div><h3>2 · Мозг учится переводу</h3>
+      <div style="font: 600 17px var(--mono)">${esc(ex.command)}</div>
+      <div class="strip" style="margin: 8px 0 12px; max-height: none">${strip(ex.actions.split(" "))}</div>
+      <div class="big">× ${num(dataset.train)}</div><div class="soft">таких примеров из датасета SCAN</div></div>
+    <div><h3>3 · Меняем 1,4 % весов</h3>
+      <div class="big">${num(pct, 1)} %</div><div class="soft">учатся только вставки LoRA — ${num(model.trainable / 1e6, 1)} млн</div>
+      <div class="share"><div class="frozen">🔒 ${num(model.total / 1e6)} млн не меняются</div><div class="lora"></div></div></div>
+    <div><h3>4 · Ошибка падает</h3>${curve}</div>`;
+}
+
+function renderParams() {
+  const p = S.state.run.passport;
+  const rows = [
+    ["Модель", p.model], ["Датасет", p.dataset], ["Примеров", `${p.train} на обучение · ${p.val} на проверку`],
+    ["Эпох · батч · шагов", `${p.epochs} · ${p.batch} · ${p.steps}`], ["Learning rate", `${p.lr} — разгон ${p.warmup} шагов, потом косинус`],
+    ["LoRA", `r ${p.lora.r} · alpha ${p.lora.alpha} · dropout ${p.lora.dropout} · ${p.lora.targets}`],
+    ["Числа", p.precision], ["Компьютер", `${p.machine.cpu} · ${p.threads} потоков · ${p.machine.ram} ГБ · без видеокарты`],
+    ["Время", minutes(p.seconds)], ["Адаптер", `${p.adapter} · ${num(p.adapter_mb, 1)} МБ`],
+    ["Версии", `torch ${p.versions.torch} · transformers ${p.versions.transformers} · peft ${p.versions.peft}`],
+  ];
+  $("passport").innerHTML = rows.map(([k, v]) => `<b>${k}</b><span>${esc(v)}</span>`).join("");
+}
+
+/* ---------- вкладка «Чему учили» ---------- */
+const D = { word: "", items: [], total: 0, inside: null };
+
+function showView(view) {
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-current", b.dataset.view === view));
+  $("view-robot").hidden = view !== "robot";
+  $("view-data").hidden = view !== "data";
+  if (view === "data") {
+    renderData();
+    if (!D.items.length) loadExamples(true);
+  } else if (S.shown) {
+    animate(S.shown.text, S.shown.results, S.shown.expect, false, true);  // поле было скрыто — перерисовать по размеру
+  }
+}
+
+function renderData() {
+  const ds = S.state.dataset, run = S.state.run, m = S.state.model, st = S.state.settings;
+  $("ex-pool").textContent = `из ${num(ds.pool)} в датасете SCAN`;
+  $("ex-words").innerHTML = `<button type="button" data-w="" aria-pressed="${!D.word}">все</button>` + Object.entries(ds.words).map(([w, n]) =>
+    `<button type="button" data-w="${w}" aria-pressed="${D.word === w}" title="примеров с этим словом">${w} <small>${num(n)}</small></button>`).join("");
+  const top = Math.max(...ds.lengths.map(l => l.count));
+  $("hist").innerHTML = ds.lengths.map(l => `<div><b>${num(l.count)}</b><i class="${l.from > 24 ? "long" : ""}" style="height: ${l.count / top * 100}%"></i><span>${l.from}–${l.to}</span></div>`).join("");
+  const longer = edge => ds.lengths.filter(l => l.from > edge).reduce((sum, l) => sum + l.count, 0);
+  $("hist-note").innerHTML = `Длиннее 24 команд — ${num(longer(24))} из ${num(ds.train)}, длиннее 32 — <b>всего ${num(longer(32))}</b>.
+    На длинных модель и ошибается: долгим повторам нужно больше примеров.`;
+  const ex = ds.demo, learn = ds.tokens.filter(t => t.learn).length;
+  $("raw").textContent = `фраза:   ${ex.command}\nкоманды: ${ex.actions}`;
+  $("tokens").innerHTML = ds.tokens.map(t =>
+    `<span class="tk ${t.special ? "special" : ""} ${t.learn ? "learn" : ""}">${esc(t.text.replace(/\n/g, "↵").replace(/^ /, "·"))}</span>`).join("");
+  $("tk-legend").innerHTML = `<span class="tk">серое — модель только читает</span><span class="tk learn">жёлтое — учится писать</span>
+    <span class="soft">${ds.tokens.length} токенов, учится на ${learn}</span>`;
+  const loss = run && smooth(run.steps);
+  const facts = [
+    [num(ds.train), "примеров"],
+    [run ? num(run.passport.steps) : Math.ceil(ds.train / st.batch) * st.epochs, `шагов по ${st.batch}`],
+    [`${num(m.trainable / m.total * 100, 1)} %`, "весов учится"],
+    [run ? `${Math.round(run.passport.seconds / 60)} мин` : "—", "на процессоре"],
+    [loss ? `${num(loss[0], 1)} → ${num(loss.at(-1), 2)}` : "—", "лосс"],
+    [run ? `${num(run.passport.adapter_mb)} МБ` : "—", "адаптер"],
+  ];
+  $("facts").innerHTML = facts.map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("");
+  $("facts-all").disabled = !run;
+}
+
+async function loadExamples(fresh) {
+  if (fresh) D.items = [];
+  const params = new URLSearchParams({ word: D.word, offset: D.items.length, limit: 24 });
+  const page = await (await fetch(`/api/examples?${params}`)).json();
+  const first = D.items.length;
+  D.items = D.items.concat(page.items);
+  D.total = page.total;
+  $("ex-count").textContent = num(D.total);
+  $("ex-more").hidden = D.items.length >= D.total;
+  const cards = page.items.map((r, k) => {
+    const i = first + k, words = r.command.split(" ").map(w => w === D.word ? `<mark>${w}</mark>` : w).join(" ");
+    return `<button type="button" class="ex-card" data-i="${i}" title="Проверить эту фразу на роботе"><span class="cmd">${words}</span>
+      <div class="strip">${strip(r.actions.split(" "), 14)}</div><svg class="thumb robot" data-i="${i}"></svg></button>`;
+  }).join("");
+  if (fresh) { $("ex-grid").innerHTML = cards; $("ex-grid").scrollTop = 0; } else $("ex-grid").insertAdjacentHTML("beforeend", cards);
+  $("ex-grid").querySelectorAll("svg[data-i]:empty").forEach(svg => drawField(svg, [{ list: D.items[+svg.dataset.i].actions.split(" ") }], null));
+}
+
+/* ---------- окно «Внутри примера» ---------- */
+const SPECIAL = /^(<\|im_start\|>|<\|im_end\|>|<\/?think>)$/;
+const pct = p => p == null ? "—" : p < 0.01 ? "<1 %" : `${Math.round(p * 100)} %`;
+const visible = t => t.replace(/\n/g, "↵").replace(/^ /, "·");   // перевод строки и пробел в начале токена — видимыми
+
+async function openInside(command) {
+  D.inside = command;
+  $("inside").hidden = false;
+  for (const id of ["st-pair", "st-pieces", "st-before", "st-after", "in-text", "in-when", "in-tokens"]) $(id).innerHTML = `<span class="soft">считаю…</span>`;
+  $("st-before-note").textContent = $("st-after-note").textContent = "";
+  const response = await fetch(`/api/inside?command=${encodeURIComponent(command)}`);
+  const d = await response.json();
+  if (D.inside !== command) return;          // пока считали, открыли другой пример
+  if (!response.ok) { $("st-pair").innerHTML = `<span class="warn">${esc(d.detail)}</span>`; return; }
+  const learn = d.tokens.filter(t => t.learn);
+  const sure = loss => `${Math.round(Math.exp(-loss) * 100)} %`;   // средняя уверенность в правильном кусочке = e^(−лосс)
+  $("st-pair").innerHTML = `<div class="bubble"><small>человек</small>${esc(d.command)}</div>
+    <div class="bubble bot"><small>правильный ответ</small><div class="strip" style="max-height: none">${strip(d.actions.split(" "), 18)}</div></div>`;
+  const MAX = 24;                            // длинный ответ — первые кусочки и «+N»
+  $("st-pieces").innerHTML = `<div class="pieces">${learn.slice(0, MAX).map(t => `<span>${esc(visible(t.text === "<|im_end|>" ? "конец" : t.text))}</span>`).join("")}
+    ${learn.length > MAX ? `<span style="background: var(--card)">+${learn.length - MAX}</span>` : ""}</div>`;
+  const meters = (key, miss) => `<div class="meters">${learn.map(t => `<i class="${miss(t) ? "miss" : ""}" style="height: ${t[key] * 100}%" title="${esc(visible(t.text))}: ${pct(t[key])}"></i>`).join("")}</div>`;
+  const wrong = learn.find(t => t.before_top !== t.text);   // первый кусочек, который модель написала бы неправильно
+  $("st-before").innerHTML = meters("before", () => false) + `<div class="sure">${sure(d.loss.before)}<small>уверенность</small></div>`;
+  $("st-before-note").innerHTML = !wrong ? "Угадывает, но не уверенно."
+    : wrong === learn[0] ? `Почти не угадывает: начать хотела с «${esc(visible(wrong.before_top))}», а нужно «${esc(visible(wrong.text))}».`
+    : `Сбивается: вместо «${esc(visible(wrong.text))}» хотела написать «${esc(visible(wrong.before_top))}».`;
+  if (d.loss.after == null) {
+    $("st-after").innerHTML = `<span class="soft">появится после дообучения</span>`;
+  } else {
+    const missed = learn.filter(t => t.after_top !== t.text);
+    $("st-after").innerHTML = meters("after", t => t.after_top !== t.text) + `<div class="sure">${sure(d.loss.after)}<small>уверенность</small></div>`;
+    $("st-after-note").innerHTML = missed.length
+      ? `<b class="err">Красный — ещё ошибается:</b> вместо «${esc(visible(missed[0].text))}» напишет «${esc(visible(missed[0].after_top))}».`
+      : "Все кусочки угадывает — ответ выйдет верным.";
+  }
+  const cut = d.text.lastIndexOf("</think>\n\n") + "</think>\n\n".length;   // дальше — ответ, которому модель учится
+  const marked = s => esc(s).replace(/&lt;\|im_(start|end)\|&gt;|&lt;\/?think&gt;/g, m => `<span class="sp">${m}</span>`)
+    .replace(/\n/g, `<span class="nl">↵</span>\n`);
+  $("in-text").innerHTML = marked(d.text.slice(0, cut)) + `<span class="ans">${marked(d.text.slice(cut))}</span>`;
+  const seen = d.where.seen[0];
+  $("in-when").innerHTML = seen
+    ? `<b class="big">шаг ${seen.step} из ${d.where.total}</b>
+       <span class="soft">видела ${d.where.seen.length === 1 ? "один раз" : `${d.where.seen.length} раза`}; в том же батче (8 примеров за шаг):</span>
+       <div class="mates">${seen.batch.filter(c => c !== d.command).map(c => `<span>${esc(c)}</span>`).join("")}</div>`
+    : `<span class="soft">Этой фразы не было среди обучающих примеров — модель её не видела.</span>`;
+  $("in-tokens").innerHTML = d.tokens.map(t =>
+    `<span class="tk ${SPECIAL.test(t.text) ? "special" : ""} ${t.learn ? "learn" : ""}"><b>${esc(visible(t.text))}</b><small>${t.id}</small></span>`).join("");
+}
+
+/* ---------- события интерфейса ---------- */
+$("tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-view]");
+  if (b) showView(b.dataset.view);
+});
+$("ex-words").addEventListener("click", e => {
+  const b = e.target.closest("button[data-w]");
+  if (!b) return;
+  D.word = b.dataset.w;
+  renderData();
+  loadExamples(true);
+});
+$("ex-more").addEventListener("click", () => loadExamples(false));
+$("ex-grid").addEventListener("click", e => {
+  const card = e.target.closest(".ex-card");
+  if (card) openInside(D.items[+card.dataset.i].command);
+});
+$("in-robot").addEventListener("click", () => {
+  $("inside").hidden = true;
+  showView("robot");
+  $("cmd").value = D.inside;
+  send(D.inside);
+});
+$("facts-all").addEventListener("click", () => { $("params").hidden = false; renderParams(); });
+$("command").addEventListener("submit", e => { e.preventDefault(); send($("cmd").value.trim()); });
+$("words").addEventListener("click", e => {
+  const b = e.target.closest("button[data-word]");
+  if (!b || b.disabled) return;
+  const words = $("cmd").value.trim().split(/\s+/).filter(Boolean);
+  if (b.dataset.word === "⌫") words.pop(); else words.push(b.dataset.word);
+  $("cmd").value = words.join(" ");
+});
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b || b.disabled) return;
+  $("cmd").value = b.textContent;
+  send(b.textContent);
+});
+$("brains").addEventListener("click", e => {
+  const b = e.target.closest("button[data-brain]");
+  if (!b || b.disabled || S.brain === b.dataset.brain) return;
+  S.brain = b.dataset.brain;
+  renderControls();
+  log("sys", "🔁", S.brain === "both" ? "Подключены оба мозга: <b>до и после</b>" : `Подключён мозг: <b>${BRAINS[S.brain].title.toLowerCase()}</b>`);
+});
+$("ckpt").addEventListener("input", e => { S.step = S.state.checkpoints[+e.target.value]; $("ckpt-label").textContent = S.step; });
+$("ckpt").addEventListener("change", () => { if ($("cmd").value.trim()) send($("cmd").value.trim()); });
+$("replay").addEventListener("click", () => {
+  const s = S.shown;
+  if (s && !S.asking) animate(s.text, s.results, s.expect);
+});
+$("ghost").addEventListener("change", () => $("field").classList.toggle("noghost", !$("ghost").checked));
+$("train-btn").addEventListener("click", async () => {
+  if (S.busy === "train") { await fetch("/api/job", { method: "DELETE" }); return; }
+  if (S.state.free < 7 && !confirm(`Свободно ${num(S.state.free, 1)} ГБ, обучению нужно около 6. Начать?`)) return;
+  startJob("train");
+});
+$("reset-btn").addEventListener("click", async () => {
+  if (!confirm("Сбросить дообучение? Мозг вернётся к состоянию «до». Обученный адаптер уйдёт в архив data/archive, "
+    + "а чтобы снова получить «после», нужно обучить заново — около 28 минут.")) return;
+  const response = await fetch("/api/reset", { method: "POST" });
+  const body = await response.json();
+  if (!response.ok) { alert(body.detail); return; }
+  await refresh();
+  S.shown = null;
+  $("say").hidden = true;
+  $("hello").hidden = false;
+  $("out").innerHTML = "";
+  setStatus("", "ждёт команду");
+  idle();
+  log("sys", "↺", `Дообучение сброшено: мозг снова «до дообучения». Прежний адаптер — в ${esc(body.archive || "архиве")}.`);
+  renderAll();
+});
+$("exam-btn").addEventListener("click", () => { $("exam").hidden = false; renderExam(); });
+$("exam-run").addEventListener("click", () => { S.filter = null; startJob("compare"); });
+$("how-btn").addEventListener("click", () => { $("how").hidden = false; renderHow(); });
+$("params-btn").addEventListener("click", () => { $("params").hidden = false; renderParams(); });
+document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", e => {
+  if (e.target === o || e.target.closest("[data-close]")) o.hidden = true;
+}));
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".overlay").forEach(o => o.hidden = true); });
+$("exam").addEventListener("click", e => {
+  const v = e.target.closest("button[data-v]");
+  if (v) { S.filter = S.filter === v.dataset.v ? null : v.dataset.v; renderExam(); return; }
+  const row = e.target.closest("tr.row");
+  if (!row || !S.exam.answers.tuned || S.asking) return;
+  const i = +row.dataset.i, q = S.exam.queries[i];
+  const brains = S.brain === "both" ? ["hint", "tuned"] : [S.brain];
+  $("exam").hidden = true;
+  $("cmd").value = q.text;
+  log("you", "👤", esc(q.text));
+  perform(q.text, brains.map(brain => ({ brain, answer: S.exam.answers[brain][i].answer, step: brain === "tuned" ? finalStep() : null })), q.expect);
+});
+window.addEventListener("resize", () => {
+  const s = S.shown;
+  if (s && !S.asking && !$("view-robot").hidden) animate(s.text, s.results, s.expect, false, true);
+});
+
+load();
+</script>
+</body>
+</html>

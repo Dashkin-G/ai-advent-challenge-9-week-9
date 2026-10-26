@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ассистент</title>
+<link rel="icon" href="data:,">
+<style>
+  /* Тот же «инженерный блокнот», что у робота, но ночью: тёмная бумага в точку, светлый контур, жёсткая тень.
+     До дообучения — серо-сиреневый, после — горчичный. */
+  :root {
+    --bg: #121327; --card: #1c1e3a; --well: #272a4d; --ink: #eceaf7; --soft: #a4a7cc; --faint: rgba(236, 234, 247, .13);
+    --edge: #4a4e86; --shadow: #07081a; --dark: #1c1e3a;
+    --accent: #ff7a50; --mustard: #f2d37a; --before: #8e93c4;
+    --err: #ff7b6b; --err-bg: rgba(255, 123, 107, .14);
+    --line: 2px solid var(--edge);
+    --display: Bahnschrift, "Segoe UI", sans-serif;
+    --mono: "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; gap: 12px; padding: 14px 32px 16px;
+    color: var(--ink); font: 19px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    background: var(--bg) radial-gradient(rgba(236, 234, 247, .07) 1.3px, transparent 1.6px) 0 0 / 24px 24px;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .45; }
+  :focus-visible { outline: 3px dashed var(--mustard); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  .soft { color: var(--soft); }
+  .grow { flex: 1; }
+  h2 { display: flex; align-items: center; gap: 10px; margin: 0; font: 700 17px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; }
+  h2 i { display: grid; place-items: center; width: 28px; height: 28px; border: var(--line); border-radius: 50%; font: 700 16px var(--display); font-style: normal; letter-spacing: 0; }
+
+  .press { --shade: var(--shadow); border: var(--line); box-shadow: 3px 3px 0 var(--shade); transition: transform .08s, box-shadow .08s; }
+  .press:not(:disabled):hover { box-shadow: 4px 4px 0 var(--shade); }
+  .press:not(:disabled):active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--shade); }
+  .press:disabled { box-shadow: none; }
+  .main {
+    --shade: var(--accent); padding: 10px 26px; border-color: var(--mustard); border-radius: 12px; background: var(--mustard);
+    color: var(--dark); font: 600 22px/1.2 var(--display); box-shadow: 5px 5px 0 var(--shade); white-space: nowrap;
+  }
+  .main.quiet { --shade: var(--shadow); border-color: var(--edge); background: var(--card); color: var(--ink); }
+  .ghost { padding: 6px 16px; border-radius: 10px; background: var(--card); font: 600 18px var(--display); white-space: nowrap; }
+  .round { width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--card); font: 700 22px/1 var(--display); }
+  .card { border: var(--line); border-radius: 16px; background: var(--card); box-shadow: 4px 4px 0 var(--shadow); }
+
+  /* Шапка */
+  header { display: flex; align-items: center; gap: 14px; }
+  .logo { width: 44px; height: 44px; flex: none; }
+  h1 { margin: 0; font: 600 34px/1 var(--display); }
+  .switch { color: inherit; text-decoration: none; }
+  .chip { padding: 3px 12px; border: 2px solid var(--faint); border-radius: 8px; color: var(--soft); font-size: 17px; white-space: nowrap; }
+  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 700px; gap: 22px; }
+
+  /* Чат: каждый вопрос получают обе модели — до и после дообучения */
+  .chat { display: flex; flex-direction: column; min-height: 0; padding: 14px 20px 16px; }
+  .chat-head { display: flex; align-items: center; gap: 14px; }
+  .state { padding: 3px 12px; border: var(--line); border-radius: 10px; font: 700 17px var(--display); white-space: nowrap; }
+  .state.tuned { border-color: var(--mustard); color: var(--mustard); }
+  .messages { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; margin: 14px 0; padding-right: 6px; scrollbar-width: thin; }
+  .hello { margin: auto; max-width: 560px; color: var(--soft); font: 600 22px/1.45 var(--display); text-align: center; }
+  .hello b { color: var(--ink); }
+  .sys { align-self: center; color: var(--soft); font: 600 17px var(--display); }
+  .turn { display: flex; flex-direction: column; gap: 8px; }
+  .you { align-self: flex-end; max-width: 75%; padding: 10px 16px; border-radius: 16px 16px 4px 16px; background: var(--well); font-size: 20px; font-weight: 600; }
+  .answers { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 12px; }
+  .ans { position: relative; min-width: 0; padding: 10px 14px 12px; border: 2px solid var(--faint); border-left: 5px solid var(--tone); border-radius: 6px 14px 14px 6px; }
+  .ans.before { --tone: var(--before); }
+  .ans.after { --tone: var(--mustard); background: rgba(242, 211, 122, .06); }
+  .ans small { display: block; margin-bottom: 4px; color: var(--tone); font: 700 14px var(--display); letter-spacing: .06em; text-transform: uppercase; }
+  .ans p { margin: 0; font-size: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ans.wait p::after { content: "думает…"; color: var(--soft); animation: blink 1s infinite; }
+  .ans.none { border-style: dashed; border-left-width: 2px; background: none; }
+  .ans.none p { color: var(--soft); font-size: 16px; }
+  @keyframes blink { 50% { opacity: .3; } }
+  .badge { display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 6px; font: 700 15px var(--display); }
+  .badge.ok { background: var(--mustard); color: var(--dark); }
+  .badge.same { background: var(--well); color: var(--mustard); }
+  .ask { flex: none; display: flex; gap: 14px; }
+  .ask input { flex: 1; min-width: 0; padding: 10px 18px; border: var(--line); border-radius: 12px; background: var(--well); font-size: 20px; }
+  .ask input::placeholder { color: var(--soft); }
+  .chips { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+  .chips span { color: var(--soft); font-size: 16px; }
+  .chips button { padding: 3px 14px; border: 2px solid var(--edge); border-radius: 18px; background: var(--card); font-size: 16px; }
+  .chips button.taught { border-color: var(--mustard); }
+  .chips button:not(:disabled):hover { background: var(--well); }
+
+  /* Справа — три шага истории: что передаём → как учится → что стало с моделью */
+  .lab { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .lab > .card { padding: 12px 18px 14px; }
+  .pair { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .pair label { display: flex; align-items: center; gap: 10px; }
+  .pair label span { flex: none; width: 118px; color: var(--soft); font: 600 15px var(--display); }
+  .pair input { flex: 1; min-width: 0; padding: 7px 14px; border: var(--line); border-radius: 10px; background: var(--well); font: 600 18px var(--mono); }
+  .pair .answer input { border-color: var(--mustard); }
+  .knobs { display: flex; gap: 8px; margin-top: 10px; }
+  .knobs div { flex: 1 1 auto; padding: 4px 12px; border-radius: 10px; background: var(--well); white-space: nowrap; }
+  .knobs b { display: block; font: 700 22px/1.2 var(--display); }
+  .knobs span { color: var(--soft); font-size: 14px; }
+  .acts { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .acts .note { color: var(--soft); font-size: 15px; line-height: 1.25; }
+
+  .study { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+  .study h2 .meta { margin-left: auto; color: var(--soft); font: 600 16px var(--display); letter-spacing: 0; text-transform: none; }
+  .meter { height: 8px; border-radius: 6px; overflow: hidden; background: var(--well); }
+  .meter i { display: block; height: 100%; width: 0; background: var(--mustard); transition: width .3s; }
+  .loop { color: var(--soft); font-size: 15px; }
+  .loop b { color: var(--ink); font-weight: 600; }
+  .bars { display: flex; gap: 4px; margin-top: 2px; }
+  .bar { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .track { position: relative; width: 100%; max-width: 54px; height: 52px; border-radius: 6px; background: var(--well); overflow: hidden; }
+  .track i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--mustard); transition: height .3s; }
+  .track i.low { background: var(--before); }
+  .track u { position: absolute; left: 0; right: 0; height: 2px; background: var(--ink); opacity: .55; }   /* уровень до обучения */
+  .piece { max-width: 100%; padding: 2px 5px; border-radius: 5px; background: var(--mustard); color: var(--dark); font: 700 15px var(--mono); white-space: pre; overflow: hidden; }
+  .piece.end { background: var(--edge); color: var(--ink); font: 600 12px var(--display); padding: 4px 5px; }
+  .piece em { opacity: .45; font-style: normal; }
+  .guess { min-height: 17px; max-width: 100%; overflow: hidden; color: var(--err); font: 13px var(--mono); white-space: pre; }
+  .scores { display: flex; align-items: center; gap: 18px; }
+  .big { font: 700 28px/1 var(--display); white-space: nowrap; }
+  .big small { display: block; margin-top: 4px; color: var(--soft); font: 14px "Segoe UI", sans-serif; }
+  .spark { flex: 1; min-width: 0; height: 52px; }
+  .spark path { fill: none; stroke: var(--mustard); stroke-width: 3; stroke-linejoin: round; }
+  .spark line { stroke: var(--faint); stroke-width: 1; }
+  .replies { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; scrollbar-width: thin; }
+  .reply { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: baseline; font-size: 16px; }
+  .reply b { color: var(--soft); font: 600 15px var(--display); white-space: nowrap; }
+  .reply span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--mono); font-size: 15px; }
+  .reply.now span { color: var(--mustard); font-weight: 700; }
+  .empty { margin: auto 0; color: var(--soft); font-size: 16px; }
+
+  .share { display: flex; height: 38px; margin-top: 10px; border: var(--line); border-radius: 10px; overflow: hidden; }
+  .share .frozen { flex: 1; display: flex; align-items: center; padding-left: 12px; font-size: 15px; font-weight: 600;
+    background: repeating-linear-gradient(45deg, #2a2d55 0 10px, #24274b 10px 20px); }
+  .share .lora { flex: none; display: flex; align-items: center; padding: 0 10px; background: var(--mustard); color: var(--dark); font: 700 15px var(--display); }
+  .share .lora.zero { background: var(--well); color: var(--soft); }
+  .model-note { margin-top: 8px; font-size: 16px; }
+  .model-note b { color: var(--mustard); }
+
+  /* Окно «Параметры» */
+  .overlay { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 30px; background: rgba(7, 8, 26, .7); }
+  .dialog { width: min(1180px, 100%); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 20px 26px;
+    border: var(--line); border-radius: 18px; background: var(--card); box-shadow: 6px 6px 0 var(--shadow); }
+  .dialog header h2 { font: 700 28px var(--display); letter-spacing: 0; text-transform: none; }
+  .dialog .close { margin-left: auto; }
+  .box { padding: 12px 16px; border: 2px solid var(--faint); border-radius: 14px; }
+  .box h3 { margin: 0 0 10px; font: 700 19px var(--display); }
+  .tokens { display: flex; flex-wrap: wrap; gap: 3px; font: 15px/1 var(--mono); }
+  .tk { padding: 5px 6px; border-radius: 5px; background: var(--well); color: var(--soft); white-space: pre; }
+  .tk.special { background: var(--edge); color: var(--ink); }
+  .tk.learn { background: var(--mustard); color: var(--dark); font-weight: 700; }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 15px; }
+  .two { display: grid; grid-template-columns: 1fr 1.6fr; gap: 14px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 17px; }
+  .kv b { white-space: nowrap; }
+  .kv span { color: var(--soft); }
+  pre.code { margin: 0; font: 14px/1.65 var(--mono); white-space: pre-wrap; }
+  pre.code i { color: var(--soft); font-style: normal; }
+  pre.code b { color: var(--mustard); font-weight: 700; }
+</style>
+</head>
+<body>
+<header>
+  <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+    <path d="M9 7h30a6 6 0 0 1 6 6v17a6 6 0 0 1-6 6H23l-9 7v-7H9a6 6 0 0 1-6-6V13a6 6 0 0 1 6-6z" fill="#f2d37a"/>
+    <circle cx="17.5" cy="21.5" r="3" fill="#1c1e3a"/><circle cx="30.5" cy="21.5" r="3" fill="#1c1e3a"/>
+    <circle cx="41" cy="7" r="4.5" fill="#ff7a50" stroke="#121327" stroke-width="2.5"/>
+  </svg>
+  <h1>Ассистент</h1>
+  <a class="ghost press switch" href="/" title="Первый проект: робот, дообученный на 2 000 примерах">⇄ Робот на нейросети</a>
+  <span class="chip" id="model-chip"></span>
+  <span class="grow"></span>
+  <span class="chip">дообучение на одном примере</span>
+</header>
+
+<main class="app">
+  <section class="card chat">
+    <div class="chat-head">
+      <h2>Чат</h2>
+      <span class="state" id="state"></span>
+    </div>
+    <div class="messages" id="messages"></div>
+    <form class="ask" id="ask">
+      <input id="q" autocomplete="off" placeholder="Спросите ассистента…">
+      <button class="main press" id="send">▶ Спросить</button>
+    </form>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <aside class="lab">
+    <section class="card">
+      <h2><i>1</i>Что передаём модели</h2>
+      <div class="pair">
+        <label><span>вопрос</span><input id="ex-q" autocomplete="off"></label>
+        <label class="answer"><span>нужный ответ</span><input id="ex-a" autocomplete="off"></label>
+      </div>
+      <div class="knobs" id="knobs"></div>
+      <div class="acts">
+        <button class="main press" id="train"></button>
+        <span class="note grow" id="train-note"></span>
+        <button class="ghost press" id="params-btn">Параметры</button>
+        <button class="ghost press" id="reset" title="Снять вставки: модель снова «до дообучения»">↺ Сбросить</button>
+      </div>
+    </section>
+
+    <section class="card study">
+      <h2><i>2</i>Как модель учится<span class="meta" id="progress"></span></h2>
+      <div class="meter"><i id="meter"></i></div>
+      <div class="loop">Шаг: модель <b>угадывает ответ по кусочкам (токенам)</b> → ошибка → вставки чуть сдвигаются</div>
+      <div class="bars" id="bars"></div>
+      <div class="scores" id="scores"></div>
+      <div class="replies" id="replies"></div>
+    </section>
+
+    <section class="card">
+      <h2><i>3</i>Что стало с моделью</h2>
+      <div class="share" id="share"></div>
+      <div class="model-note" id="model-note"></div>
+    </section>
+  </aside>
+</main>
+
+<div class="overlay" id="params" hidden>
+  <div class="dialog">
+    <header style="display: flex; align-items: center"><h2>Что именно уходит в модель</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <section class="box"><h3>Данные: один пример в шаблоне чата Qwen3.5</h3><div class="tokens" id="p-tokens"></div><div class="legend" id="p-legend"></div></section>
+    <div class="two">
+      <section class="box"><h3>Настройки обучения</h3><div class="kv" id="p-settings"></div></section>
+      <section class="box"><h3>Код — что вызываем на самом деле</h3><pre class="code" id="p-code"></pre></section>
+    </div>
+    <section class="box" id="p-run-box"><h3>Последний запуск</h3><div class="kv" id="p-run"></div></section>
+  </div>
+</div>
+
+<script>
+const S = { state: null, busy: false, asking: false, live: null };
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const num = (x, d = 0) => x.toLocaleString("ru-RU", { maximumFractionDigits: d, minimumFractionDigits: d });
+const pct = p => p < 0.01 ? "<1 %" : `${Math.round(p * 100)} %`;
+const norm = s => String(s).trim().replace(/\s+/g, " ").toLowerCase();
+const rich = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");   // модель выделяет слова **так**
+const sure = loss => Math.exp(-loss);                       // средняя уверенность в кусочке ответа = e^(−лосс)
+const piece = t => t === "<|im_end|>" ? "конец" : t.replace(/\n/g, "↵");
+const example = () => ({ question: $("ex-q").value.trim(), answer: $("ex-a").value.trim() });
+const taught = () => S.state.run && S.state.run.example;    // чему модель выучена сейчас
+
+async function lines(response, onEvent) {
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let i;
+    while ((i = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, i);
+      buffer = buffer.slice(i + 1);
+      if (line.trim()) onEvent(JSON.parse(line));
+    }
+  }
+}
+
+/* ---------- загрузка ---------- */
+async function load() {
+  await refresh();
+  const st = S.state;
+  $("model-chip").textContent = `модель — ${st.model.name.split("/")[1]} на процессоре ноутбука`;
+  $("ex-q").value = st.example.question;
+  $("ex-a").value = st.example.answer;
+  $("ex-q").maxLength = $("ex-a").maxLength = st.settings.max;
+  $("knobs").innerHTML = [
+    ["1", "пример"],
+    [st.settings.steps, "шагов"],
+    [num(st.settings.lr, 4), "LR (скорость обучения)"],
+    [`r ${st.settings.r}`, "LoRA (ширина вставок)"],
+  ].map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("");
+  hello();
+  render();
+  if (st.job.running && st.job.kind === "assistant") follow();
+}
+
+async function refresh() {
+  S.state = await (await fetch("/api/assistant/state")).json();
+}
+
+/* ---------- чат ---------- */
+function hello() {
+  const t = taught() || S.state.example;
+  $("messages").innerHTML = `<div class="hello">Спросите «<b>${esc(t.question)}</b>».<br>
+    ${S.state.ready ? "Ответят обе модели: до дообучения и после." : "Потом дообучите модель справа — и спросите снова."}</div>`;
+}
+
+function note(text) {      // строка в чате об обучении и сбросе — прежние ответы остаются для сравнения
+  $("messages").querySelector(".hello")?.remove();
+  $("messages").insertAdjacentHTML("beforeend", `<div class="sys">${text}</div>`);
+  $("messages").scrollTop = $("messages").scrollHeight;
+}
+
+async function ask(text) {
+  if (!text || S.busy || S.asking) return;
+  S.asking = true;
+  renderControls();
+  $("messages").querySelector(".hello")?.remove();
+  const turn = document.createElement("div");
+  turn.className = "turn";
+  turn.innerHTML = `<div class="you">${esc(text)}</div><div class="answers">
+    <div class="ans before wait"><small>до дообучения</small><p></p></div>
+    <div class="ans after ${S.state.ready ? "wait" : "none"}"><small>после дообучения</small><p>${S.state.ready ? "" : "модель ещё не дообучена"}</p></div></div>`;
+  $("messages").append(turn);
+  turn.scrollIntoView({ block: "end" });
+  try {
+    const response = await fetch("/api/assistant/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }) });
+    if (!response.ok) throw new Error((await response.json()).detail);
+    await lines(response, e => {
+      if (e.type !== "answer") return;
+      const box = turn.querySelector(`.ans.${e.mode}`);
+      box.classList.remove("wait");
+      box.querySelector("p").innerHTML = rich(e.text || "(пусто)");
+      if (e.mode === "after") box.insertAdjacentHTML("beforeend", badge(text, e.text));
+      turn.scrollIntoView({ block: "end" });
+    });
+  } catch (err) {
+    turn.querySelectorAll(".wait").forEach(b => { b.classList.remove("wait"); b.querySelector("p").textContent = "⚠ " + err.message; });
+  } finally {
+    S.asking = false;
+    renderControls();
+  }
+}
+
+/* Ответ «после» — тот, которому учили? На вопрос из примера — ✓, на другой вопрос — модель перенесла выученное */
+function badge(question, answer) {
+  const t = taught();
+  if (!t || !norm(answer).startsWith(norm(t.answer))) return "";
+  return norm(question) === norm(t.question) ? `<em class="badge ok">✓ как учили</em>`
+    : `<em class="badge same">= ответ из обучения</em>`;
+}
+
+/* ---------- дообучение ---------- */
+async function train() {
+  if (S.busy) { await fetch("/api/job", { method: "DELETE" }); return; }
+  const ex = example();
+  if (S.state.free < 3 && !confirm(`Свободно ${num(S.state.free, 1)} ГБ памяти, обучению нужно около 3. Начать?`)) return;
+  const response = await fetch("/api/assistant/train", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(ex) });
+  if (!response.ok) { alert((await response.json()).detail); return; }
+  follow();
+}
+
+async function follow() {
+  S.busy = true;
+  S.live = { total: S.state.settings.steps, step: null, pieces: null, steps: [], replies: [], status: "загружаю модель…" };
+  render();
+  await lines(await fetch("/api/events?since=0"), onTrain);
+  const outcome = S.live.outcome;
+  S.busy = false;
+  S.live = null;
+  await refresh();
+  if (outcome) note(outcome);
+  render();
+}
+
+function onTrain(e) {
+  const live = S.live;
+  if (e.type === "start") {
+    Object.assign(live, { total: e.total, pieces: e.pieces, example: e.example, status: "первый шаг…" });
+  } else if (e.type === "step") {
+    if (e.step === 0) live.before = e.sure;
+    Object.assign(live, { step: e.step, sure: e.sure, top: e.top, moved: e.moved, seconds: e.seconds, status: "" });
+    live.steps.push([e.step, e.loss]);
+    if (e.reply != null) live.replies.push([e.step, e.reply]);
+  } else if (e.type === "done") {
+    live.outcome = `✓ Модель дообучена за ${Math.round(e.run.passport.seconds)} с — спросите снова`;
+  } else if (e.type === "stopped") {
+    live.outcome = "■ Обучение остановлено — прежняя модель на месте";
+  } else if (e.type === "error") {
+    live.outcome = `⚠ ${esc(e.message)}`;
+  }
+  if (e.type !== "end") render();
+}
+
+/* Что показать в «Как модель учится»: идущее обучение, последнее законченное или ничего */
+function view() {
+  if (S.live) return S.live;
+  const run = S.state.run;
+  if (!run) return null;
+  return { total: run.total, step: run.total, pieces: run.pieces, sure: run.sure.after, top: run.top.after,
+    before: run.sure.before, steps: run.steps, replies: run.replies, moved: run.moved, seconds: run.passport.seconds };
+}
+
+/* ---------- отрисовка ---------- */
+function render() {
+  renderControls();
+  renderLearn();
+  renderModel();
+}
+
+function renderControls() {
+  const st = S.state, t = taught(), blocked = S.busy || S.asking;
+  const other = st.job.running && st.job.kind !== "assistant" && !S.busy;   // идёт обучение робота
+  $("state").textContent = S.busy ? "модель учится…" : st.ready ? "модель дообучена ✓" : "модель до дообучения";
+  $("state").className = `state ${st.ready && !S.busy ? "tuned" : ""}`;
+  ["q", "send", "ex-q", "ex-a"].forEach(id => $(id).disabled = blocked);
+  $("q").placeholder = S.busy ? "идёт дообучение — чат подождёт" : "Спросите ассистента…";
+  $("chips").innerHTML = `<span>Спросить:</span>` + st.questions.map(q => {
+    const mine = t && norm(q) === norm(t.question);
+    return `<button type="button" class="${mine ? "taught" : ""}" ${blocked ? "disabled" : ""} title="${mine ? "этому вопросу модель училась" : ""}">${esc(q)}</button>`;
+  }).join("");
+  const button = $("train");
+  button.textContent = S.busy ? "■ Остановить" : st.ready ? "↻ Дообучить заново" : "🎓 Дообучить";
+  button.className = `main press ${S.busy || st.ready ? "quiet" : ""}`;
+  button.disabled = S.asking || other;
+  const changed = t && (norm(t.question) !== norm($("ex-q").value) || norm(t.answer) !== norm($("ex-a").value));
+  $("train-note").textContent = other ? "идёт обучение робота" : S.busy || (st.ready && !changed) ? ""
+    : changed ? "пример изменён — обучите заново" : `≈ ${Math.round(st.settings.steps * 1.5)} с на процессоре`;
+  $("reset").disabled = blocked || !st.ready;
+  $("params-btn").disabled = false;
+}
+
+function renderLearn() {
+  const v = view(), st = S.state;
+  const pieces = v && v.pieces ? v.pieces : st.pieces.filter(p => p.learn).map(p => p.text);
+  const at = v && v.step != null ? v.step : null;
+  $("progress").textContent = !v ? "" : at == null ? v.status : `шаг ${at} из ${v.total} · ${Math.round(v.seconds)} с`;
+  $("meter").style.width = `${at == null ? 0 : at / v.total * 100}%`;
+  $("bars").innerHTML = pieces.map((t, i) => {
+    const p = v && v.sure ? v.sure[i] : null, was = v && v.before ? v.before[i] : null;
+    const guess = v && v.top && v.top[i] !== t ? v.top[i] : "";
+    const text = t === "<|im_end|>" ? "конец" : esc(t.replace(/\n/g, "↵")).replace(/^ /, "<em>·</em>");
+    return `<div class="bar" title="${esc(piece(t))}${p == null ? "" : `: уверенность ${pct(p)}${was == null ? "" : `, до обучения ${pct(was)}`}`}">
+      <div class="track"><i class="${p != null && p < .5 ? "low" : ""}" style="height: ${(p || 0) * 100}%"></i>${was != null && at ? `<u style="bottom: ${was * 100}%"></u>` : ""}</div>
+      <span class="piece ${t === "<|im_end|>" ? "end" : ""}">${text}</span>
+      <span class="guess">${guess ? esc(piece(guess)) : ""}</span></div>`;
+  }).join("");
+  if (!v || !v.steps.length) {
+    $("scores").innerHTML = "";
+    $("replies").innerHTML = `<div class="empty">${v ? "" : "Столбик — насколько модель уверена в каждом кусочке нужного ответа. Нажмите «Дообучить» — и смотрите, как они растут."}</div>`;
+    return;
+  }
+  const first = v.steps[0][1], lastLoss = v.steps.at(-1)[1];
+  $("scores").innerHTML = `<div class="big">${pct(sure(first))} → ${pct(sure(lastLoss))}<small>уверенность в ответе</small></div>
+    ${sparkline(v.steps, v.total)}<div class="big">${num(first, 2)} → ${num(lastLoss, 2)}<small>ошибка (лосс)</small></div>`;
+  const t = v.example || (st.run && st.run.example) || st.example;
+  const shown = v.replies.filter((r, i) => i === 0 || r[1] !== v.replies[i - 1][1]);   // только когда ответ поменялся
+  $("replies").innerHTML = `<div class="soft" style="font-size: 15px">Что модель отвечает на «${esc(t.question)}»:</div>` + shown.map((r, i) =>
+    `<div class="reply ${i === shown.length - 1 ? "now" : ""}"><b>шаг ${r[0]}</b><span title="${esc(r[1])}">${rich(r[1]) || "(пусто)"}${norm(r[1]) === norm(t.answer) ? " ✓" : ""}</span></div>`).join("");
+}
+
+function sparkline(steps, total) {
+  const W = 220, H = 52, top = Math.max(...steps.map(s => s[1]), 1e-6);
+  const d = steps.map(([s, l], i) => `${i ? "L" : "M"}${(W * s / total).toFixed(1)} ${(3 + (H - 6) * (1 - l / top)).toFixed(1)}`).join("");
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="0" y1="${H - 1}" x2="${W}" y2="${H - 1}"/>
+    <path d="${d}" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+function renderModel() {
+  const st = S.state, m = st.model, v = view(), run = st.run;
+  const share = m.trainable / m.total * 100, moved = v && v.moved ? v.moved : 0;
+  $("share").innerHTML = `<div class="frozen">🔒 ${num(m.total / 1e6)} млн весов Qwen — не меняются</div>
+    <div class="lora ${moved ? "" : "zero"}" title="вставки LoRA: ${num(m.trainable)} чисел">+ ${num(m.trainable / 1e6, 1)} млн</div>`;
+  $("model-note").innerHTML = S.busy
+    ? `Учатся только вставки LoRA (маленькие обучаемые вставки) — ${num(share, 1)} % чисел. Сдвинули веса на <b>${num(moved, 2)} %</b>.`
+    : st.ready && run ? `Вставки сдвинули веса всего на <b>${num(moved, 2)} %</b> — и модель отвечает по-новому.
+      Сохранены в адаптер (файл со вставками) — <b>${num(run.passport.adapter_mb, 1)} МБ</b>.`
+    : `Вставки LoRA (маленькие обучаемые вставки) пока нули — модель отвечает как была.`;
+}
+
+/* ---------- окно «Параметры» ---------- */
+async function openParams() {
+  $("params").hidden = false;
+  const st = S.state, ex = example(), set = st.settings, m = st.model, run = st.run;
+  let pieces = st.pieces;
+  if (ex.question && ex.answer && (ex.question !== st.example.question || ex.answer !== st.example.answer)) {
+    const response = await fetch(`/api/assistant/pieces?${new URLSearchParams(ex)}`);
+    if (response.ok) pieces = await response.json();
+  }
+  const special = t => /^(<\|im_start\|>|<\|im_end\|>|<\/?think>)$/.test(t);
+  $("p-tokens").innerHTML = pieces.map(p =>
+    `<span class="tk ${special(p.text) ? "special" : ""} ${p.learn ? "learn" : ""}" title="токен №${p.id}">${esc(p.text.replace(/\n/g, "↵"))}</span>`).join("");
+  const learn = pieces.filter(p => p.learn).length;
+  $("p-legend").innerHTML = `<span class="tk">серое — модель только читает</span><span class="tk learn">жёлтое — учится писать</span>
+    <span class="soft">${pieces.length} токенов (кусочков текста), учится на ${learn}</span>`;
+  $("p-settings").innerHTML = [
+    ["Модель", `${m.name} · ${num(m.total / 1e6)} млн весов`],
+    ["Пример", "1 — вопрос и нужный ответ"],
+    ["Шагов", `${set.steps} — пример показываем ${set.steps} раз`],
+    ["LR", `${set.lr} — скорость обучения, оптимизатор AdamW`],
+    ["LoRA", `r ${set.r} · alpha ${set.alpha} · во все ${m.matrices} линейных матриц`],
+    ["Учится", `${num(m.trainable)} чисел — ${num(m.trainable / m.total * 100, 2)} % модели`],
+  ].map(([k, v]) => `<b>${k}</b><span>${esc(v)}</span>`).join("");
+  const code = [   // строка кода и комментарий; числа — те, с которыми модель учится
+    [`lora = LoraConfig(<b>r=${set.r}</b>, <b>lora_alpha=${set.alpha}</b>, target_modules="all-linear")`, ""],
+    ["model = get_peft_model(qwen, lora)", "веса Qwen заморожены"],
+    [`opt = AdamW(lora_params, <b>lr=${set.lr}</b>)`, "учатся только вставки"],
+    [`for step in range(<b>${set.steps}</b>):`, ""],
+    ["    loss = model(ids, labels=labels).loss", "ошибка на жёлтых токенах"],
+    ["    loss.backward()", "куда сдвигать вставки"],
+    ["    opt.step(); opt.zero_grad()", "сдвигаем"],
+  ];
+  $("p-code").innerHTML = code.map(([line, comment]) => !comment ? line
+    : line + " ".repeat(Math.max(2, 44 - line.replace(/<[^>]+>/g, "").length)) + `<i># ${comment}</i>`).join("\n");
+  $("p-run-box").hidden = !run;
+  if (run) {
+    const p = run.passport;
+    $("p-run").innerHTML = [
+      ["Когда", p.date.replace("T", " ")], ["Время", `${p.seconds} с · ${p.machine.cpu}, ${p.threads} потоков, без видеокарты`],
+      ["Адаптер", `${p.adapter} · ${num(p.adapter_mb, 1)} МБ`], ["Числа", p.precision],
+      ["Версии", `torch ${p.versions.torch} · transformers ${p.versions.transformers} · peft ${p.versions.peft}`],
+    ].map(([k, v]) => `<b>${k}</b><span>${esc(v)}</span>`).join("");
+  }
+}
+
+/* ---------- события интерфейса ---------- */
+$("ask").addEventListener("submit", e => {
+  e.preventDefault();
+  const text = $("q").value.trim();
+  $("q").value = "";
+  ask(text);
+});
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (b && !b.disabled) ask(b.textContent);
+});
+$("train").addEventListener("click", train);
+$("reset").addEventListener("click", async () => {
+  if (!confirm("Сбросить дообучение? Вставки удалятся — модель снова будет «до дообучения».")) return;
+  const response = await fetch("/api/assistant/reset", { method: "POST" });
+  if (!response.ok) { alert((await response.json()).detail); return; }
+  await refresh();
+  note("↺ Дообучение сброшено — модель снова «до дообучения»");
+  render();
+});
+["ex-q", "ex-a"].forEach(id => $(id).addEventListener("input", renderControls));
+$("params-btn").addEventListener("click", openParams);
+document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", e => {
+  if (e.target === o || e.target.closest("[data-close]")) o.hidden = true;
+}));
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".overlay").forEach(o => o.hidden = true); });
+
+load();
+</script>
+</body>
+</html>
