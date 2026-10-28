@@ -23,11 +23,11 @@ def lora_config(r=config.LORA_R, alpha=config.LORA_ALPHA, dropout=config.LORA_DR
     return LoraConfig(r=r, lora_alpha=alpha, lora_dropout=dropout, target_modules="all-linear", task_type="CAUSAL_LM")
 
 
-def load(adapter=False):
-    """Базовая модель в bf16 — на процессоре с AVX-512 вдвое быстрее fp32; adapter=True — с обученными вставками."""
+def load(adapter=None):
+    """Базовая модель в bf16 — на процессоре с AVX-512 вдвое быстрее fp32; adapter — папка с обученными вставками."""
     torch.set_num_threads(config.THREADS)
     base = AutoModelForCausalLM.from_pretrained(config.MODEL, dtype=torch.bfloat16)
-    return PeftModel.from_pretrained(base, config.ADAPTER_DIR) if adapter else base
+    return PeftModel.from_pretrained(base, adapter) if adapter else base
 
 
 def with_lora(base):

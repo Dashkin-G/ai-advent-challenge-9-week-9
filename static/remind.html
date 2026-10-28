@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Напоминалка на нейросети</title>
+<link rel="icon" href="data:,">
+<style>
+  /* Стиль — «инженерный блокнот», как у робота: бумага в точку, контур и жёсткая тень цвета индиго.
+     Мозг до дообучения — бежевые карточки, после — горчичные; правильное место — пунктир. */
+  :root {
+    --paper: #f4efe6; --card: #fffdf9; --ink: #23264d; --soft: #50557a; --faint: rgba(35, 38, 77, .14);
+    --accent: #e5603b; --mustard: #f2d37a; --beige: #e6dccb; --read: #ebe5d9;
+    --err: #b42318; --err-bg: #fbe3dc;
+    --line: 2px solid var(--ink);
+    --display: Bahnschrift, "Segoe UI", sans-serif;
+    --mono: "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; gap: 12px; padding: 14px 32px 16px;
+    color: var(--ink); font: 19px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    background: var(--paper) radial-gradient(rgba(35, 38, 77, .09) 1.3px, transparent 1.6px) 0 0 / 24px 24px;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .45; }
+  :focus-visible { outline: 3px dashed var(--ink); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  .soft { color: var(--soft); }
+  .grow { flex: 1; }
+  h2 { margin: 0; font: 700 17px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; }
+
+  .press { --shade: var(--ink); border: var(--line); box-shadow: 3px 3px 0 var(--shade); transition: transform .08s, box-shadow .08s; }
+  .press:not(:disabled):hover { box-shadow: 4px 4px 0 var(--shade); }
+  .press:not(:disabled):active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--shade); }
+  .press:disabled { box-shadow: none; }
+  .main {
+    --shade: var(--accent); padding: 10px 28px; border-radius: 12px; background: var(--ink); color: var(--card);
+    font: 600 23px/1.2 var(--display); box-shadow: 5px 5px 0 var(--shade); white-space: nowrap;
+  }
+  .main.quiet { --shade: var(--ink); background: var(--card); color: var(--ink); }
+  .ghost { padding: 6px 16px; border-radius: 10px; background: var(--card); font: 600 19px var(--display); white-space: nowrap; }
+  .round { width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--card); font: 700 22px/1 var(--display); }
+  .card { border: var(--line); border-radius: 16px; background: var(--card); box-shadow: 4px 4px 0 var(--ink); }
+
+  header { display: flex; align-items: center; gap: 14px; }
+  .logo { width: 44px; height: 44px; flex: none; }
+  h1 { margin: 0; font: 600 34px/1 var(--display); }
+  .chip { padding: 3px 12px; border: 2px solid rgba(35, 38, 77, .3); border-radius: 8px; color: var(--soft); font-size: 17px; white-space: nowrap; }
+  .tabs { display: flex; margin-left: 6px; border: var(--line); border-radius: 10px; overflow: hidden; }
+  .tabs button { padding: 5px 16px; border: none; background: var(--card); font: 600 19px var(--display); white-space: nowrap; }
+  .tabs button + button { border-left: var(--line); }
+  .tabs button[aria-current="true"] { background: var(--ink); color: var(--card); }
+  .view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 520px; gap: 22px; }
+
+  /* Календарь */
+  .week { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .week-head { flex: none; display: flex; align-items: center; gap: 14px; padding: 10px 16px 10px 20px; border-bottom: var(--line); }
+  .status { padding: 3px 12px; border: var(--line); border-radius: 10px; background: var(--card); font: 700 17px var(--display); white-space: nowrap; }
+  .status.ok { background: var(--mustard); }
+  .status.bad { background: var(--err-bg); border-color: var(--err); color: var(--err); }
+  .status.wait::after { content: "…"; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .days { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); background: #efe9dd; }
+  .day { display: flex; flex-direction: column; min-height: 0; border-right: 2px solid var(--faint); }
+  .day:last-child { border-right: none; background: rgba(35, 38, 77, .04); }
+  .day > header { flex: none; display: block; padding: 8px 10px 6px; border-bottom: 2px solid var(--faint); }
+  .day > header b { display: block; font: 700 24px/1 var(--display); }
+  .day > header span { color: var(--soft); font-size: 15px; }
+  .day.today > header { background: var(--ink); color: var(--card); }
+  .day.today > header span { color: #d7d9ee; }
+  .day .notes { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; scrollbar-width: thin; }
+  .note {                                  /* карточка напоминания: время крупно, дело, ✓ / ✗ */
+    position: relative; padding: 6px 9px 7px; border: var(--line); border-radius: 10px; background: var(--tone, var(--mustard));
+    box-shadow: 2px 2px 0 var(--ink); font-size: 15px; line-height: 1.25;
+  }
+  .note b { display: block; font: 700 19px/1.1 var(--display); }
+  .note b small { margin-left: 4px; font: 600 13px var(--display); color: var(--soft); }
+  .note i { position: absolute; top: 4px; right: 7px; font: 700 17px var(--display); font-style: normal; }
+  .note.bad { border-color: var(--err); }
+  .note.bad i { color: var(--err); }
+  .note.ghost { background: transparent; border: 2.5px dashed var(--soft); box-shadow: none; color: var(--soft); }
+  .note.ghost::before { content: "правильно"; display: block; font: 700 11px var(--display); letter-spacing: .08em; text-transform: uppercase; }
+  .note.new { animation: pop .5s; }
+  @keyframes pop { 0% { scale: .6; opacity: 0; } 60% { scale: 1.08; } 100% { scale: 1; } }
+  .empty-hint { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); width: 70%; color: var(--soft); font: 600 22px/1.4 var(--display); text-align: center; pointer-events: none; }
+  .said { flex: none; display: flex; align-items: center; gap: 14px; min-height: 66px; padding: 8px 20px; border-top: var(--line); }
+  .said > span { flex: none; color: var(--soft); font-size: 15px; line-height: 1.2; }
+  .rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .res { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .res > b { flex: none; min-width: 64px; padding: 1px 8px; border-radius: 6px; background: var(--tone); font: 700 15px var(--display); text-align: center; white-space: nowrap; }
+  .f { display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 10px; border: 2px solid var(--ink); border-radius: 8px; background: var(--card); font: 600 16px var(--mono); white-space: nowrap; }
+  .f small { color: var(--soft); font: 600 12px var(--display); text-transform: uppercase; letter-spacing: .05em; }
+  .f.ok { background: var(--mustard); }
+  .f.bad { border-color: var(--err); background: var(--err-bg); color: var(--err); }
+  .f.task { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .res .to { flex: none; color: var(--soft); font: 600 16px var(--display); white-space: nowrap; }
+  .res .talk { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--err); font-style: italic; font-size: 16px; }
+
+  /* Мозг и лента */
+  .side { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .brain { flex: none; padding: 14px 18px 16px; }
+  .brains { display: flex; margin-top: 10px; border: var(--line); border-radius: 12px; overflow: hidden; }
+  .brains button { flex: 1; padding: 8px 6px; border: none; background: var(--card); font: 600 17px var(--display); }
+  .brains button + button { border-left: var(--line); }
+  .brains button[aria-pressed="true"] { background: var(--tone); }
+  [data-brain="hint"] { --tone: var(--beige); } [data-brain="tuned"] { --tone: var(--mustard); }
+  [data-brain="both"] { --tone: linear-gradient(90deg, var(--beige) 50%, var(--mustard) 50%); }
+  .brain-chip { padding: 3px 12px; border: var(--line); border-radius: 10px; background: var(--tone); font: 700 17px var(--display); white-space: nowrap; }
+  .brain-sub { margin-top: 8px; color: var(--soft); font-size: 17px; }
+  .log { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 12px; }
+  .log-list { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; scrollbar-width: thin; }
+  .msg { display: grid; grid-template-columns: 30px 1fr; gap: 2px 8px; align-items: start; margin-bottom: 8px; font-size: 16px; }
+  .msg > i { font-style: normal; font-size: 20px; line-height: 1.3; }
+  .msg small { grid-column: 2; color: var(--soft); font-size: 13px; line-height: 1.1; }
+  .msg .body { grid-column: 2; min-width: 0; overflow-wrap: anywhere; }
+  .msg.you .body { font: 600 16px var(--mono); }
+  .msg.raw .body { font: 14px/1.4 var(--mono); color: var(--soft); }
+  .msg.ok .body { font-weight: 700; }
+  .msg.bad .body { color: var(--err); font-weight: 700; }
+  .msg.sys .body { color: var(--soft); }
+
+  .command { flex: none; display: flex; align-items: center; gap: 14px; }
+  .command input { flex: 1; min-width: 0; padding: 10px 18px; border: var(--line); border-radius: 12px; background: var(--card); font: 22px var(--mono); box-shadow: 3px 3px 0 var(--ink); }
+  .chips { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .chips span { color: var(--soft); font-size: 16px; }
+  .chips button { padding: 3px 12px; border: 2px solid var(--ink); border-radius: 18px; background: var(--card); font: 16px var(--mono); }
+  .chips button:not(:disabled):hover { background: var(--mustard); }
+
+  /* Обучение */
+  .train { flex: none; display: flex; align-items: center; gap: 22px; min-height: 78px; padding: 10px 20px; }
+  .train .info { flex: 1; min-width: 0; }
+  .train .line { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; font-size: 18px; }
+  .train .line b { font: 700 24px var(--display); }
+  .meter { height: 12px; margin-top: 6px; border: var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+  .meter i { display: block; height: 100%; width: 0; background: var(--mustard); transition: width .4s; }
+  .example { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 8px; background: var(--read); font: 15px var(--mono); }
+  .warn { color: var(--err); font-weight: 600; }
+  .spark { flex: none; display: flex; align-items: center; gap: 12px; }
+  .spark svg { width: 200px; height: 54px; }
+  .spark path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linejoin: round; }
+  .spark .num { font: 700 24px var(--display); white-space: nowrap; }
+  .spark small { display: block; color: var(--soft); font: 14px "Segoe UI", sans-serif; }
+  .train .tools { flex: none; display: flex; flex-direction: column; gap: 8px; }
+  .train .tools .ghost { padding: 4px 14px; font-size: 17px; }
+
+  /* Вкладка «Датасет» */
+  .data { flex: 1; min-height: 0; display: grid; grid-template-columns: 760px minmax(0, 1fr); gap: 22px; }
+  .data .col { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  .data .card { padding: 12px 18px; }
+  .funnel { display: grid; grid-template-columns: 300px 1fr 60px; gap: 6px 14px; align-items: center; margin-top: 8px; }
+  .funnel .name { font: 700 18px/1.15 var(--display); }
+  .funnel .name small { display: block; color: var(--soft); font: 13px/1.2 "Segoe UI", sans-serif; }
+  .funnel .bar { position: relative; height: 26px; border-radius: 6px; background: var(--read); }
+  .funnel .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--ink); }
+  .funnel .bar s { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); max-width: calc(100% - 16px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--card); font: 13px var(--mono); }
+  .funnel .num { font: 700 20px var(--display); text-align: right; }
+  .funnel .num.cut { color: var(--accent); }
+  .funnel .num.zero { color: var(--soft); font-weight: 600; }
+  .split { display: flex; gap: 10px; margin-top: 12px; }
+  .split div { display: flex; align-items: baseline; gap: 10px; padding: 4px 12px; border: var(--line); border-radius: 12px; background: var(--tone); white-space: nowrap; }
+  .split div:first-child { flex: 1; }
+  .split b { font: 700 24px/1.1 var(--display); }
+  .split span { font-size: 14px; }
+  .bal { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 8px; }
+  .bal h3 { margin: 0 0 4px; font: 700 17px var(--display); }
+  .bal .row { display: grid; grid-template-columns: 130px 1fr 44px; gap: 8px; align-items: center; font-size: 15px; line-height: 1.3; }
+  .bal .row i { height: 14px; border-radius: 4px; background: var(--ink); }
+  .bal .row i.few { background: var(--accent); }
+  .bal .row b { font: 700 16px var(--display); text-align: right; }
+  .tokens { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 10px; font: 14px/1 var(--mono); }
+  .tk { padding: 4px 5px; border-radius: 5px; background: var(--read); color: var(--soft); white-space: pre; }
+  .tk.special { background: var(--soft); color: var(--card); }
+  .tk.learn { background: var(--mustard); color: var(--ink); font-weight: 700; }
+  .tk.special.learn { box-shadow: inset 0 0 0 3px var(--mustard); background: var(--soft); color: var(--card); }
+  .tk-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 15px; }
+  .review { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .review-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .review-head b { font: 700 22px var(--display); }
+  .grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 8px; align-content: start; margin-top: 12px; scrollbar-width: thin; }
+  .ex { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 7px 10px 7px 12px; border: 2px solid var(--faint); border-radius: 12px; background: var(--paper); }
+  .ex.good { border-color: var(--ink); }
+  .ex.bad { border-color: var(--err); background: var(--err-bg); }
+  .ex .text { font: 600 15px var(--mono); }
+  .ex .fields { grid-column: 1; display: flex; flex-wrap: wrap; gap: 4px; }
+  .ex .fields .f { padding: 0 7px; font-size: 13px; border-width: 1.5px; }
+  .ex .marks { grid-column: 2; grid-row: 1 / 3; display: flex; gap: 6px; }
+  .ex .marks button { width: 38px; height: 34px; border: var(--line); border-radius: 8px; background: var(--card); font: 700 18px var(--display); }
+  .ex .marks button[aria-pressed="true"][data-v="good"] { background: var(--mustard); }
+  .ex .marks button[aria-pressed="true"][data-v="bad"] { background: var(--err); color: var(--card); border-color: var(--err); }
+
+  /* Окна */
+  .overlay { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 30px; background: rgba(35, 38, 77, .45); }
+  .dialog { width: min(1500px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 14px; padding: 20px 26px; border: var(--line); border-radius: 18px; background: var(--card); box-shadow: 6px 6px 0 var(--ink); overflow: hidden; }
+  .dialog > header h2 { font: 700 28px var(--display); letter-spacing: 0; text-transform: none; }
+  .dialog .close { margin-left: auto; }
+  .scores { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+  .score { min-width: 200px; padding: 6px 16px; border: var(--line); border-radius: 12px; background: var(--tone); }
+  .score b { display: block; font: 700 36px/1.05 var(--display); }
+  .score span { font-size: 15px; font-weight: 600; }
+  .score small { display: block; color: var(--soft); font-size: 13px; }
+  .v { padding: 2px 10px; border: none; border-radius: 6px; font-size: 16px; font-weight: 700; white-space: nowrap; }
+  .v.better { background: var(--mustard); } .v.same { background: var(--read); color: var(--soft); } .v.worse { background: var(--err-bg); color: var(--err); }
+  button.v[aria-pressed="true"] { outline: 2.5px solid var(--ink); outline-offset: 1px; }
+  .table-box { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+  table { width: 100%; border-collapse: collapse; font-size: 16px; }
+  th { position: sticky; top: 0; z-index: 1; padding: 6px 10px; background: var(--card); font: 700 15px var(--display); letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+  th.m { border-bottom: 4px solid var(--tone); }
+  td { padding: 5px 10px; border-top: 2px solid var(--faint); vertical-align: middle; }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: #faf6ee; }
+  td.cmd { font: 600 15px var(--mono); }
+  td.cmd small { display: block; color: var(--soft); font: 13px "Segoe UI", sans-serif; }
+  .cell { display: flex; align-items: center; gap: 8px; font: 14px var(--mono); }
+  .cell s { color: var(--err); text-decoration: none; font-weight: 700; }
+  .cell .talk { max-width: 230px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--soft); font: italic 14px "Segoe UI", sans-serif; }
+  .ok-mark, .no-mark { flex: none; font: 700 22px var(--display); }
+  .no-mark { color: var(--err); }
+  .how { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .how > div { padding: 16px 18px; border: var(--line); border-radius: 14px; background: var(--paper); }
+  .how h3 { margin: 0 0 12px; font: 700 21px var(--display); }
+  .how .big { font: 700 42px/1 var(--display); }
+  .how pre { margin: 8px 0 0; font: 14px/1.5 var(--mono); white-space: pre-wrap; }
+  .share { display: flex; height: 40px; margin: 12px 0 0; border: var(--line); border-radius: 10px; overflow: hidden; }
+  .share .frozen { flex: 1; display: flex; align-items: center; padding-left: 12px; background: repeating-linear-gradient(45deg, #e3dfee 0 10px, #ece8f4 10px 20px); font-size: 15px; font-weight: 600; }
+  .share .lora { flex: none; width: 8px; background: var(--mustard); border-left: var(--line); }
+  .how svg.curve { width: 100%; height: 100px; }
+  .how svg.curve path { fill: none; stroke: var(--ink); stroke-width: 3.5; }
+  .terms { display: grid; grid-template-columns: repeat(4, auto 1fr); gap: 6px 14px; font-size: 17px; }
+  .terms b { white-space: nowrap; }
+  .terms span { color: var(--soft); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; font-size: 18px; }
+  .kv b { white-space: nowrap; }
+  .prompt { max-height: 60vh; overflow: auto; margin: 0; padding: 12px 16px; border-radius: 10px; background: var(--read); font: 15px/1.5 var(--mono); white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+    <rect x="5" y="9" width="38" height="34" rx="7" fill="#fffdf9" stroke="#23264d" stroke-width="3"/>
+    <path d="M5 18h38" stroke="#23264d" stroke-width="3"/>
+    <path d="M15 5v8M33 5v8" stroke="#23264d" stroke-width="3" stroke-linecap="round"/>
+    <rect x="12" y="24" width="14" height="12" rx="3" fill="#f2d37a" stroke="#23264d" stroke-width="2.5"/>
+    <circle cx="35" cy="30" r="3.5" fill="#e5603b"/>
+  </svg>
+  <h1>Напоминалка на нейросети</h1>
+  <nav class="tabs" id="tabs"><button type="button" data-view="app" aria-current="true">Напоминалка</button><button type="button" data-view="data">Датасет</button></nav>
+  <span class="chip" id="model-chip"></span>
+  <span class="grow"></span>
+  <button class="ghost press" id="exam-btn">Экзамен · 40 фраз<b id="exam-score"></b></button>
+  <button class="round press" id="how-btn" aria-label="Как это работает">?</button>
+</header>
+
+<div class="view" id="view-app">
+<main class="app">
+  <section class="card week">
+    <div class="week-head">
+      <h2>Неделя</h2>
+      <span class="brain-chip" id="brain-chip"></span>
+      <span class="status" id="status">ждёт фразу</span>
+      <span class="grow"></span>
+      <button class="ghost press" id="clear" style="padding: 3px 14px; font-size: 17px">Очистить</button>
+    </div>
+    <div class="days" id="days"></div>
+    <div class="said"><span>мозг →<br>календарь</span><div class="rows" id="rows"></div></div>
+  </section>
+
+  <aside class="side">
+    <section class="card brain">
+      <h2>Мозг напоминалки</h2>
+      <div class="brains" id="brains">
+        <button type="button" data-brain="hint">До дообучения</button>
+        <button type="button" data-brain="tuned">После</button>
+        <button type="button" data-brain="both">До и после</button>
+      </div>
+      <div class="brain-sub" id="brain-sub"></div>
+    </section>
+    <section class="card log">
+      <h2>Лента</h2>
+      <div class="log-list" id="log"></div>
+    </section>
+  </aside>
+</main>
+
+<form class="command" id="command">
+  <input id="say" autocomplete="off" placeholder="о чём напомнить? например: в пятницу после обеда позвонить тёте Лене">
+  <button class="main press" id="go">＋ Поставить</button>
+</form>
+<div class="chips" id="chips"></div>
+</div>
+
+<div class="view" id="view-data" hidden>
+  <div class="data">
+    <div class="col">
+      <section class="card">
+        <h2>Как собрали датасет</h2>
+        <div class="funnel" id="funnel"></div>
+        <div class="split" id="split"></div>
+      </section>
+      <section class="card">
+        <h2>Разброс — нет ли перекоса</h2>
+        <div class="bal" id="balance"></div>
+      </section>
+      <section class="card">
+        <div class="tk-legend" style="margin: 0"><h2>Как пример видит модель</h2><span class="grow"></span><span class="tk">фразу читает</span><span class="tk learn">JSON учится писать</span><span class="tk special">служебные</span></div>
+        <div class="tokens" id="tokens"></div>
+      </section>
+    </div>
+    <section class="card review">
+      <div class="review-head">
+        <h2>Глазами: 30 случайных примеров</h2><b id="review-count"></b>
+        <span class="grow"></span>
+        <button class="ghost press" id="review-more">Ещё 30</button>
+        <button class="ghost press" id="rebuild" title="Отмеченные ✗ уйдут из train">Пересобрать датасет</button>
+      </div>
+      <div class="soft" style="font-size: 16px; margin-top: 4px">Верен ли ответ? ✓ — да, ✗ — ошибка: при пересборке пример уйдёт из train</div>
+      <div class="grid" id="review"></div>
+    </section>
+  </div>
+</div>
+
+<footer class="card train">
+  <button class="main press" id="train-btn"></button>
+  <div class="info" id="train-info"></div>
+  <div class="spark" id="spark"></div>
+  <div class="tools">
+    <button class="ghost press" id="params-btn" hidden>Параметры</button>
+    <button class="ghost press" id="reset-btn" hidden title="Мозг вернётся к состоянию до обучения; адаптер — в архив">↺ Сбросить</button>
+  </div>
+</footer>
+
+<div class="overlay" id="exam" hidden>
+  <div class="dialog">
+    <header style="display: flex; align-items: center; gap: 16px">
+      <h2>Экзамен: 40 фраз, написанных руками, — в обучении их не было</h2>
+      <button class="ghost press" id="exam-run">▶ Провести заново</button>
+      <button class="ghost press" id="hint-btn">Инструкция «до»</button>
+      <button class="round press close" data-close aria-label="Закрыть">✕</button>
+    </header>
+    <div class="scores" id="exam-scores"></div>
+    <div class="table-box"><table id="exam-table"></table></div>
+  </div>
+</div>
+
+<div class="overlay" id="how" hidden>
+  <div class="dialog">
+    <header style="display: flex; align-items: center"><h2>Как напоминалка научилась</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="how" id="how-cards"></div>
+    <div class="terms">
+      <b>Датасет</b><span>пары «фраза → правильный ответ»</span>
+      <b>Eval</b><span>экзамен: фразы с эталонами</span>
+      <b>LoRA</b><span>маленькие обучаемые вставки в слои</span>
+      <b>Лосс</b><span>ошибка модели на ответе</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="params" hidden>
+  <div class="dialog" style="width: min(900px, 100%)">
+    <header style="display: flex; align-items: center"><h2>Параметры обучения</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="kv" id="passport"></div>
+  </div>
+</div>
+
+<div class="overlay" id="hint" hidden>
+  <div class="dialog" style="width: min(1100px, 100%)">
+    <header style="display: flex; align-items: center"><h2>Инструкция мозга «до дообучения»</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="soft">Её добавляют перед каждой фразой. Дообученному мозгу она не нужна — правила он взял из примеров.</div>
+    <pre class="prompt" id="hint-text"></pre>
+  </div>
+</div>
+
+<script>
+const BRAINS = {
+  base: { title: "Без инструкции", short: "без инстр." },
+  hint: { title: "До дообучения", short: "до", sub: "модель + инструкция: правила и 6 примеров в промпте" },
+  tuned: { title: "После дообучения", short: "после", sub: "та же модель + адаптер LoRA, инструкция не нужна" },
+  both: { title: "До и после", sub: "одна фраза обоим мозгам: бежевая карточка — до, горчичная — после" },
+};
+const TONE = { base: "var(--read)", hint: "var(--beige)", tuned: "var(--mustard)", both: "linear-gradient(90deg, var(--beige) 50%, var(--mustard) 50%)" };
+const FIELDS = ["день", "время", "дело"];
+const WEEK = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
+const SHIFT = { "сегодня": 0, "завтра": 1, "послезавтра": 2 };
+const VERDICT = { better: "лучше", same: "так же", worse: "хуже" };
+const EXAMPLES = ["в пятницу после обеда позвонить тёте Лене", "через 45 минут забрать дочь с танцев",
+  "в понедельник в полвосьмого утра выехать на встречу", "на выходных разобрать балкон", "Привет! Как дела?"];
+const S = { state: null, brain: "hint", busy: null, asking: false, live: null, exam: null, filter: null,
+  cards: [], temp: [], shown: [], page: 0, review: [] };
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const num = (x, d = 0) => x.toLocaleString("ru-RU", { maximumFractionDigits: d, minimumFractionDigits: d });
+const minutes = s => s < 60 ? `${Math.round(s)} с` : `${Math.floor(s / 60)} мин ${String(Math.round(s % 60)).padStart(2, "0")} с`;
+const short = (s, n) => (s = String(s).replace(/\s+/g, " ").trim()).length > n ? s.slice(0, n - 1) + "…" : s;
+const mark = ok => ok == null ? "" : ok ? '<span class="ok-mark">✓</span>' : '<span class="no-mark">✗</span>';
+const pad = n => String(n).padStart(2, "0");
+const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dayName = d => `${WEEK[(d.getDay() + 6) % 7]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
+const isNone = got => got && FIELDS.every(f => got[f] == null);   // все три null — «не напоминание»
+try { S.cards = JSON.parse(localStorage.getItem("remind-cards")) || []; } catch { S.cards = []; }
+const save = () => { try { localStorage.setItem("remind-cards", JSON.stringify(S.cards)); } catch {} };
+
+/* ---------- дата в календаре: считает код, не модель ---------- */
+function when(v, now = new Date()) {
+  const day = v["день"], time = v["время"];
+  if (typeof time === "string" && /^\+\d{1,2}:\d{2}$/.test(time)) {       // «через …» — от текущей минуты
+    const [h, m] = time.slice(1).split(":").map(Number), t = new Date(now.getTime() + (h * 60 + m) * 60000);
+    return { date: dayKey(t), time: `${pad(t.getHours())}:${pad(t.getMinutes())}` };
+  }
+  if (time != null && !/^\d{2}:\d{2}$/.test(time)) return null;
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (day == null || day in SHIFT) d.setDate(d.getDate() + (SHIFT[day] || 0));
+  else if (WEEK.includes(day)) d.setDate(d.getDate() + (WEEK.indexOf(day) - (d.getDay() + 6) % 7 + 7) % 7);  // ближайший
+  else if (/^\+\d{1,2}$/.test(day)) d.setDate(d.getDate() + Number(day.slice(1)));
+  else if (/^\d{2}\.\d{2}$/.test(day)) {
+    const [dd, mm] = day.split(".").map(Number), x = new Date(d.getFullYear(), mm - 1, dd);
+    if (x.getMonth() !== mm - 1) return null;
+    if (x < d) x.setFullYear(x.getFullYear() + 1);                         // дата прошла — следующий год
+    return { date: dayKey(x), time };
+  } else return null;
+  return { date: dayKey(d), time };
+}
+
+/* ---------- загрузка и поток событий ---------- */
+async function load() {
+  await refresh(true);
+  $("model-chip").textContent = `мозг — ${S.state.model.name.split("/")[1]} на процессоре ноутбука`;
+  $("chips").innerHTML = `<span>Попробуйте:</span>` + EXAMPLES.map(t => `<button type="button">${esc(t)}</button>`).join("");
+  log("sys", "📅", "Напишите, о чём напомнить. Мозг разберёт фразу на <b>день · время · дело</b>, а календарь поставит карточку.");
+  renderAll();
+  if (S.state.job.running) { S.busy = S.state.job.kind.replace("remind-", ""); follow(); }
+}
+
+async function refresh(initial = false) {
+  S.state = await (await fetch("/api/state")).json();
+  S.exam = S.state.exam;
+  if (initial || (!S.state.ready && S.brain !== "hint")) S.brain = S.state.ready ? "tuned" : "hint";
+}
+
+async function lines(response, onEvent) {
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let i;
+    while ((i = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, i);
+      buffer = buffer.slice(i + 1);
+      if (line.trim()) onEvent(JSON.parse(line));
+    }
+  }
+}
+
+async function follow() {
+  renderAll();
+  await lines(await fetch("/api/events?since=0"), e => (S.busy === "exam" ? onExam : onTrain)(e));
+  const kind = S.busy;
+  S.busy = null;
+  S.live = null;
+  await refresh();
+  if (kind === "train" && S.state.ready) S.brain = "tuned";
+  renderAll();
+}
+
+async function startJob(kind) {
+  const response = await fetch(`/api/${kind}`, { method: "POST" });
+  if (!response.ok) { alert((await response.json()).detail); return; }
+  S.busy = kind;
+  follow();
+}
+
+/* ---------- фраза мозгу ---------- */
+async function send(text) {
+  const brains = S.brain === "both" ? ["hint", "tuned"] : [S.brain];
+  if (!text || S.busy || S.asking) return;
+  S.asking = true;
+  renderControls();
+  log("you", "👤", esc(text));
+  setStatus("wait", brains.length > 1 ? "мозги думают" : "мозг думает");
+  $("rows").innerHTML = `<span class="soft">…</span>`;
+  try {
+    const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, modes: brains }) });
+    if (!response.ok) throw new Error((await response.json()).detail);
+    let expect = null;
+    const results = [];
+    await lines(response, e => {
+      if (e.type === "start") expect = e.expect;
+      if (e.type === "answer") results.push({ brain: e.mode, raw: e.answer, got: e.got, check: e.check });
+    });
+    perform(text, results, expect, true);
+  } catch (err) {
+    setStatus("bad", "нет связи с мозгом");
+    log("bad", "⚠️", esc(err.message));
+  } finally {
+    S.asking = false;
+    renderControls();
+  }
+}
+
+/* Ответы мозгов → карточки в календаре, строки «мозг → календарь», лента; keep — сохранить карточки */
+function perform(text, results, expect, keep) {
+  S.temp = [];
+  const verdicts = [];
+  for (const r of results) {
+    const who = r.label || BRAINS[r.brain].short;
+    log("raw", "🧠", esc(short(r.raw, 160)), `мозг (${r.label || BRAINS[r.brain].title.toLowerCase()})`);
+    const [tone, said] = outcome(r);
+    verdicts.push(tone);
+    log(tone, "📅", said);
+    const place = r.got && r.got["дело"] ? when(r.got) : null;
+    if (place) {
+      const card = { id: Date.now() + Math.random(), task: String(r.got["дело"]), ...place, brain: r.brain,
+        ok: r.check ? r.check.ok : null, fresh: true };
+      (keep ? S.cards : S.temp).push(card);
+    }
+    r.who = who;
+  }
+  if (expect && expect["дело"] && results.every(r => r.check && !r.check.ok)) {   // верного ответа нет — показать, где надо
+    const place = when(expect);
+    if (place) S.temp.push({ id: "ghost", task: expect["дело"], ...place, ghost: true });
+  }
+  if (keep) save();
+  S.shown = results;
+  renderDays();
+  renderRows(results);
+  const label = results.length > 1 ? results.map(r => `${r.who} ${r.check ? (r.check.ok ? "✓" : "✗") : "·"}`).join(" · ") : null;
+  const tone = verdicts.includes("bad") ? "bad" : verdicts.every(v => v === "ok") ? "ok" : "";
+  setStatus(tone, label || ({ ok: "✓ поставил верно", bad: "✗ ошибся" }[tone] || "поставил"));
+}
+
+function outcome(r) {
+  if (!r.got) return ["bad", "❓ это не JSON — в календарь не встало"];
+  if (isNone(r.got)) {
+    if (r.check) return r.check.ok ? ["ok", "✓ не напоминание — календарь не трогаю"] : ["bad", "✗ решил, что это не напоминание"];
+    return ["", "не напоминание — календарь не трогаю"];
+  }
+  const place = r.got["дело"] ? when(r.got) : null;
+  if (!place) return ["bad", `❓ не понял, когда: ${esc(JSON.stringify([r.got["день"], r.got["время"]]))}`];
+  const at = `${dayName(new Date(place.date + "T00:00"))}${place.time ? " · " + place.time : ""}`;
+  if (!r.check) return ["", `поставил на ${at}`];
+  const wrong = FIELDS.filter(f => !r.check.fields[f]);
+  return r.check.ok ? ["ok", `✓ ${at} — верно`] : ["bad", `✗ ${at} — неверно: ${wrong.join(", ")}`];
+}
+
+function setStatus(tone, text) {
+  $("status").className = `status ${tone}`;
+  $("status").textContent = text;
+}
+
+function log(kind, avatar, html, label) {
+  const box = $("log"), item = document.createElement("div");
+  item.className = `msg ${kind}`;
+  item.innerHTML = `<i>${avatar}</i>${label ? `<small>${esc(label)}</small>` : ""}<div class="body">${html}</div>`;
+  box.append(item);
+  while (box.children.length > 80) box.firstChild.remove();
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ---------- календарь ---------- */
+function renderDays() {
+  const today = new Date(), start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const days = [...Array(7)].map((_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
+  const keys = days.map(dayKey), last = keys.at(-1);
+  const all = [...S.cards, ...S.temp];
+  const column = key => all.filter(c => key === "later" ? c.date > last : c.date === key)
+    .sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")));
+  const note = c => {
+    const tone = c.ghost ? "" : `style="--tone: ${TONE[c.brain]}"`;
+    const cls = ["note", c.ghost ? "ghost" : c.ok === false ? "bad" : "", c.fresh ? "new" : ""].join(" ");
+    const date = c.date > last ? `<small>${c.date.slice(8)}.${c.date.slice(5, 7)}</small>` : "";
+    return `<div class="${cls}" ${tone}><b>${c.time || "весь день"}${date}</b>${esc(c.task)}${c.ghost ? "" : `<i>${c.ok == null ? "" : c.ok ? "✓" : "✗"}</i>`}</div>`;
+  };
+  const head = (d, i) => `<header><b>${i ? WEEK[(d.getDay() + 6) % 7] : "сегодня"}</b><span>${i ? "" : WEEK[(d.getDay() + 6) % 7] + " "}${pad(d.getDate())}.${pad(d.getMonth() + 1)}</span></header>`;
+  $("days").innerHTML = days.map((d, i) => `<div class="day ${i ? "" : "today"}">${head(d, i)}<div class="notes">${column(keys[i]).map(note).join("")}</div></div>`).join("")
+    + `<div class="day"><header><b>позже</b><span>через неделю и дальше</span></header><div class="notes">${column("later").map(note).join("")}</div></div>`
+    + (all.length ? "" : `<div class="empty-hint">Скажите, о чём напомнить, — мозг разберёт фразу, а календарь поставит карточку</div>`);
+  all.forEach(c => delete c.fresh);
+}
+
+function renderRows(results) {
+  $("rows").innerHTML = results.map(r => {
+    const label = `<b style="--tone: ${TONE[r.brain]}">${esc(r.who || BRAINS[r.brain].short)}</b>`;
+    if (!r.got) return `<div class="res">${label}<span class="talk">💬 ${esc(short(r.raw, 140))}</span></div>`;
+    const chip = f => {
+      const v = r.got[f], tone = r.check ? (r.check.fields[f] ? "ok" : "bad") : "";
+      return `<span class="f ${tone} ${f === "дело" ? "task" : ""}"><small>${f}</small>${v == null ? "—" : esc(v)}</span>`;
+    };
+    const place = r.got["дело"] ? when(r.got) : null;
+    const to = place ? `→ ${dayName(new Date(place.date + "T00:00"))}${place.time ? " · " + place.time : ""}` : isNone(r.got) ? "→ не напоминание" : "";
+    return `<div class="res">${label}${FIELDS.map(chip).join("")}<span class="to">${to}</span></div>`;
+  }).join("");
+}
+
+/* ---------- обучение ---------- */
+function onTrain(e) {
+  if (e.type === "start") {
+    S.live = { total: e.total, probes: e.probes, steps: [] };
+    log("sys", "🎓", `Дообучение началось: ${e.total} шагов по ${S.state.settings.batch} примеров. На каждом кадре мозг пробует 3 фразы из экзамена.`);
+  } else if (!S.live) {
+    return;
+  } else if (e.type === "step") {
+    S.live.steps.push([e.step, e.loss]);
+    S.live.seconds = e.seconds;
+    S.live.first ??= e.seconds;
+  } else if (e.type === "snapshot") {
+    const results = S.live.probes.map((p, i) => ({ brain: e.step ? "tuned" : "base", label: `шаг ${e.step}`, raw: e.answers[i],
+      got: e.checks[i].got, check: e.checks[i] }));
+    log("you", "👤", S.live.probes.map(p => esc(p.text)).join("<br>"), `шаг ${e.step} · лосс на valid ${num(e.val, 2)}`);
+    S.temp = [];
+    results.forEach((r, i) => {
+      r.who = `шаг ${e.step}`;
+      const place = r.got && r.got["дело"] ? when(r.got) : null;
+      if (place) S.temp.push({ id: i, task: String(r.got["дело"]), ...place, brain: r.brain, ok: r.check.ok, fresh: true });
+    });
+    renderDays();
+    renderRows(results);
+    const ok = results.filter(r => r.check.ok).length;
+    setStatus(ok === 3 ? "ok" : "bad", `шаг ${e.step}: верно ${ok} из 3`);
+    log(ok === 3 ? "ok" : "bad", "📅", `шаг ${e.step}: верно ${ok} из 3`);
+  } else if (e.type === "done") {
+    log("sys", "🎓", `Мозг дообучен за ${minutes(e.passport.seconds)} — адаптер ${num(e.passport.adapter_mb, 1)} МБ.`);
+  } else if (e.type === "stopped") {
+    log("sys", "🎓", "Обучение остановлено — прежний мозг на месте.");
+  } else if (e.type === "error") {
+    log("bad", "⚠️", esc(e.message));
+  }
+  if (e.type !== "end") renderTrain();
+}
+
+function smooth(steps, k = 0.15) {
+  let value = null;
+  return steps.map(([, loss]) => value = value == null ? loss : value + k * (loss - value));
+}
+
+function sparkline(steps, total) {
+  if (!steps.length) return "";
+  const sm = smooth(steps), top = Math.max(...sm), W = 200, H = 54;
+  const d = steps.map(([s], i) => `${i ? "L" : "M"}${(W * s / total).toFixed(1)} ${(4 + (H - 8) * (1 - sm[i] / top)).toFixed(1)}`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${d}" vector-effect="non-scaling-stroke"/></svg>
+    <div><div class="num">${num(sm[0], 2)} → ${num(sm.at(-1), 2)}</div><small>лосс — ошибка на ответе</small></div>`;
+}
+
+function teach(row) {
+  const a = row.answer;
+  return `<span class="example">${esc(row.text)} → ${FIELDS.map(f => a[f] == null ? "—" : esc(a[f])).join(" · ")}</span>`;
+}
+
+function renderTrain() {
+  const { state } = S, run = state.run, train = state.report.sizes.train;
+  const total = Math.ceil(train / state.settings.batch) * state.settings.epochs;
+  const live = S.busy === "train" ? S.live || { total, steps: [] } : null;
+  const button = $("train-btn"), info = $("train-info");
+  $("params-btn").hidden = !run || !!live;
+  $("reset-btn").hidden = !state.ready || !!live;
+  button.disabled = S.busy === "exam" || S.asking;
+  if (live) {
+    const step = live.steps.length ? live.steps.at(-1)[0] : 0;
+    const left = step > 1 ? (live.seconds - live.first) / (step - 1) * (live.total - step) : 0;
+    button.textContent = "■ Остановить";
+    button.className = "main press quiet";
+    const status = step > 1 ? `осталось ≈ ${minutes(left)}` : step ? "считаю скорость…" : "загружаю модель…";
+    info.innerHTML = `<div class="line"><b>Мозг учится: шаг ${step} из ${live.total}</b><span class="soft">${status}</span></div>
+      <div class="meter"><i style="width: ${step / live.total * 100}%"></i></div>`;
+    $("spark").innerHTML = sparkline(live.steps, live.total);
+    return;
+  }
+  const memory = state.free < 5 ? `<span class="warn">свободно ${num(state.free, 1)} ГБ — закройте лишние программы</span>` : "";
+  button.className = run ? "main press quiet" : "main press";
+  button.textContent = run ? "🎓 Дообучить заново" : "🎓 Дообучить мозг";
+  if (run) {
+    info.innerHTML = `<div class="line"><b>Мозг дообучен ✓</b><span>${num(run.passport.train)} примеров своего датасета · ${minutes(run.passport.seconds)} на процессоре</span>${memory}</div>
+      <div class="line soft" style="font-size: 16px; margin-top: 2px">примеры вида ${teach(state.demo)}</div>`;
+    $("spark").innerHTML = sparkline(run.steps, run.total);
+  } else {
+    info.innerHTML = `<div class="line"><b>Мозг не дообучен</b><span>покажем ему ${num(train)} примеров вида</span>${teach(state.demo)}<span class="soft">≈ ${Math.round(total * 7 / 60)} мин</span>${memory}</div>`;
+    $("spark").innerHTML = "";
+  }
+}
+
+function renderControls() {
+  const blocked = !!S.busy || S.asking;
+  ["say", "go"].forEach(id => $(id).disabled = blocked);
+  document.querySelectorAll("#chips button").forEach(b => b.disabled = blocked);
+  document.querySelectorAll("#brains button").forEach(b => {
+    const needs = b.dataset.brain !== "hint" && !S.state.ready;
+    b.setAttribute("aria-pressed", b.dataset.brain === S.brain);
+    b.disabled = blocked || needs;
+    b.title = needs ? "Сначала дообучите мозг — кнопка внизу" : "";
+  });
+  $("brain-chip").textContent = S.brain === "both" ? "мозги: до и после" : `мозг: ${BRAINS[S.brain].title.toLowerCase()}`;
+  $("brain-chip").style.setProperty("--tone", TONE[S.brain]);
+  $("brain-sub").textContent = BRAINS[S.brain].sub;
+  $("train-btn").disabled = S.busy === "exam" || S.asking;
+  $("reset-btn").disabled = blocked;
+  $("rebuild").disabled = $("review-more").disabled = blocked;
+}
+
+function renderAll() {
+  renderTrain();
+  renderControls();
+  renderDays();
+  const sum = S.exam && S.exam.summary;
+  $("exam-score").textContent = sum ? ` · ${sum.hint.ok} → ${sum.tuned ? sum.tuned.ok : "?"}` : "";
+  if (!$("exam").hidden) renderExam();
+  if (!$("view-data").hidden) renderData();
+}
+
+/* ---------- экзамен ---------- */
+function onExam(e) {
+  if (e.type === "start") S.exam = { queries: e.queries, answers: {} };
+  else if (e.type === "answers") S.exam.answers[e.mode] = e.answers;
+  else if (e.type === "done") S.exam = e.report;
+  else if (e.type === "error") alert(e.message);
+  if (e.type !== "end") renderExam();
+}
+
+function renderExam() {
+  const c = S.exam, live = S.busy === "exam";
+  $("exam-run").disabled = !!S.busy || S.asking;
+  $("exam-run").textContent = live ? "идёт экзамен…" : c ? "▶ Провести заново" : "▶ Провести экзамен";
+  if (!c) {
+    $("exam-scores").innerHTML = "";
+    $("exam-table").innerHTML = `<tr><td class="soft" style="padding: 40px; font-size: 22px">Экзамена ещё не было — нажмите «Провести экзамен» (≈ 3 мин)</td></tr>`;
+    return;
+  }
+  const modes = ["base", "hint", "tuned"];
+  const score = mode => {
+    const list = c.answers[mode];
+    const fields = list ? FIELDS.map(f => `${f} ${list.filter(r => r.fields[f]).length}`).join(" · ") : "";
+    return `<div class="score" style="--tone: ${TONE[mode]}"><b>${list ? `${list.filter(r => r.ok).length} / ${list.length}` : live ? "…" : "—"}</b><span>${BRAINS[mode].title}</span><small>${fields}</small></div>`;
+  };
+  const sum = c.summary;
+  $("exam-scores").innerHTML = modes.map(score).join("")
+    + (sum && sum.better != null ? `<span class="grow"></span><span class="soft" style="font-size: 16px">после против до:</span>` + Object.entries(VERDICT).map(([v, t]) =>
+      `<button type="button" class="v ${v}" data-v="${v}" aria-pressed="${S.filter === v}">${t} ${sum[v]}</button>`).join("") : "");
+  const head = `<tr><th>Фраза</th><th>Эталон</th>${modes.map(m => `<th class="m" style="--tone: ${TONE[m]}">${BRAINS[m].title}</th>`).join("")}<th></th></tr>`;
+  const rows = c.queries.map((q, i) => {
+    if (S.filter && c.verdicts && c.verdicts[i] !== S.filter) return "";
+    return `<tr class="row" data-i="${i}"><td class="cmd">${esc(q.text)}<small>${esc(q.check)}</small></td>
+      <td><div class="cell">${triple(q.answer)}</div></td>
+      ${modes.map(m => `<td>${cell(i, m, live)}</td>`).join("")}
+      <td>${c.verdicts ? `<span class="v ${c.verdicts[i]}">${VERDICT[c.verdicts[i]]}</span>` : ""}</td></tr>`;
+  }).join("");
+  $("exam-table").innerHTML = head + rows;
+}
+
+function triple(v, fields) {
+  if (isNone(v)) return `<span${fields && !fields["дело"] ? ' class="no-mark" style="font-size: 14px"' : ""}>не напоминание</span>`;
+  return FIELDS.map(f => {
+    const text = v[f] == null ? "—" : esc(f === "дело" ? short(v[f], 26) : v[f]);
+    return fields && !fields[f] ? `<s>${text}</s>` : text;
+  }).join(" · ");
+}
+
+function cell(i, mode, waiting) {
+  const r = S.exam.answers[mode] && S.exam.answers[mode][i];
+  if (!r) return `<span class="soft">${waiting ? "…" : ""}</span>`;
+  const body = r.got ? `<span>${triple(r.got, r.fields)}</span>` : `<span class="talk">💬 ${esc(short(r.answer, 50))}</span>`;
+  return `<div class="cell">${mark(r.ok)}${body}</div>`;
+}
+
+/* ---------- вкладка «Датасет» ---------- */
+function showView(view) {
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-current", b.dataset.view === view));
+  $("view-app").hidden = view !== "app";
+  $("view-data").hidden = view !== "data";
+  if (view === "data") {
+    renderData();
+    if (!S.review.length) loadReview();
+  }
+}
+
+function renderData() {
+  const r = S.state.report, first = r.steps[0].left;
+  $("funnel").innerHTML = r.steps.map((s, i) => {
+    const removed = s.removed || 0;
+    const ex = (s.examples || []).slice(0, 2).map(t => `«${esc(t)}»`).join(" ");
+    const numCls = i === 0 ? "" : removed ? "cut" : "zero";
+    return `<div class="name">${esc(s.name)}${s.why ? `<small>${esc(s.why)}</small>` : ""}</div>
+      <div class="bar"><i style="width: ${s.left / first * 100}%"></i>${removed ? `<s title="убрано, например">${ex}</s>` : ""}</div>
+      <div class="num ${numCls}">${i === 0 ? num(s.left) : removed ? `−${removed}` : "0"}</div>`;
+  }).join("");
+  const z = r.sizes;
+  $("split").innerHTML = `<div style="--tone: var(--mustard)"><b>${num(z.train)}</b><span>train — на них учится</span></div>
+    <div style="--tone: var(--beige)"><b>${num(z.valid)}</b><span>valid — лосс на новых</span></div>
+    <div style="--tone: var(--read)"><b>${z.eval}</b><span>eval — руками</span></div>`;
+  const group = (title, counts) => {
+    const top = Math.max(...Object.values(counts)), all = Object.values(counts).reduce((a, b) => a + b, 0);
+    return `<div><h3>${title}</h3>${Object.entries(counts).map(([k, n]) =>
+      `<div class="row"><span>${esc(k)}</span><i class="${n / all < .05 ? "few" : ""}" style="width: ${n / top * 100}%"></i><b>${Math.round(n / all * 100)}%</b></div>`).join("")}</div>`;
+  };
+  $("balance").innerHTML = group("Когда — день", r.balance.day) + group("Когда — время", r.balance.time);
+  $("tokens").innerHTML = S.state.tokens.map(t => `<span class="tk ${t.special ? "special" : ""} ${t.learn ? "learn" : ""}">${esc(t.text.replace(/\n/g, "↵"))}</span>`).join("");
+  renderReview();
+}
+
+async function loadReview() {
+  S.review = await (await fetch(`/api/review?page=${S.page}`)).json();
+  renderReview();
+}
+
+function renderReview() {
+  const seen = S.review.filter(r => r.mark).length, bad = S.review.filter(r => r.mark === "bad").length;
+  $("review-count").textContent = `просмотрено ${seen} из ${S.review.length}${bad ? ` · брак ${bad}` : ""}`;
+  $("review").innerHTML = S.review.map((r, i) => `<div class="ex ${r.mark || ""}">
+      <div class="text">${esc(r.text)}</div>
+      <div class="fields">${FIELDS.map(f => `<span class="f"><small>${f}</small>${r.answer[f] == null ? "—" : esc(r.answer[f])}</span>`).join("")}</div>
+      <div class="marks"><button type="button" data-i="${i}" data-v="good" aria-pressed="${r.mark === "good"}" title="ответ верный">✓</button><button type="button" data-i="${i}" data-v="bad" aria-pressed="${r.mark === "bad"}" title="ошибка — убрать из train">✗</button></div>
+    </div>`).join("");
+}
+
+/* ---------- как это работает и параметры ---------- */
+function renderHow() {
+  const { model, run, report } = S.state, pct = model.trainable / model.total * 100;
+  const curve = run ? (() => {
+    const sm = smooth(run.steps), top = Math.max(...sm);
+    return `<svg class="curve" viewBox="0 0 300 100" preserveAspectRatio="none"><path vector-effect="non-scaling-stroke" d="${run.steps.map(([s], i) =>
+      `${i ? "L" : "M"}${(300 * s / run.total).toFixed(1)} ${(6 + 88 * (1 - sm[i] / top)).toFixed(1)}`).join("")}"/></svg>
+      <div class="big">${num(sm[0], 1)} → ${num(sm.at(-1), 2)}</div><div class="soft">${run.passport.steps} шагов · ${minutes(run.passport.seconds)} на процессоре</div>`;
+  })() : `<div class="soft">появится после дообучения</div>`;
+  $("how-cards").innerHTML = `
+    <div><h3>1 · Фраза → 3 поля</h3><pre>в пятницу после обеда
+позвонить тёте Лене
+↓
+{"день": "пт",
+ "время": "15:00",
+ "дело": "позвонить тёте Лене"}</pre><div class="soft" style="margin-top: 8px">дату (пт → число) считает календарь</div></div>
+    <div><h3>2 · Свой датасет</h3><div class="big">${num(report.steps[0].left)} → ${num(report.sizes.train)}</div>
+      <div class="soft">генератор собрал фразы, чистка убрала дубли и спорные; экзамен — ${report.sizes.eval} фраз руками</div></div>
+    <div><h3>3 · Меняем 1,4 % весов</h3>
+      <div class="big">${num(pct, 1)} %</div><div class="soft">учатся только вставки LoRA — ${num(model.trainable / 1e6, 1)} млн</div>
+      <div class="share"><div class="frozen">🔒 ${num(model.total / 1e6)} млн не меняются</div><div class="lora"></div></div></div>
+    <div><h3>4 · Ошибка падает</h3>${curve}</div>`;
+}
+
+function renderParams() {
+  const p = S.state.run.passport;
+  const rows = [
+    ["Модель", p.model], ["Датасет", p.dataset], ["Примеров", `${p.train} на обучение · ${p.val} на проверку`],
+    ["Эпох · батч · шагов", `${p.epochs} · ${p.batch} · ${p.steps}`], ["Learning rate", `${p.lr} — разгон ${p.warmup} шагов, потом косинус`],
+    ["LoRA", `r ${p.lora.r} · alpha ${p.lora.alpha} · dropout ${p.lora.dropout} · ${p.lora.targets}`],
+    ["Числа", p.precision], ["Компьютер", `${p.machine.cpu} · ${p.threads} потоков · ${p.machine.ram} ГБ · без видеокарты`],
+    ["Время", minutes(p.seconds)], ["Адаптер", `${p.adapter} · ${num(p.adapter_mb, 1)} МБ`],
+    ["Версии", `torch ${p.versions.torch} · transformers ${p.versions.transformers} · peft ${p.versions.peft}`],
+  ];
+  $("passport").innerHTML = rows.map(([k, v]) => `<b>${k}</b><span>${esc(v)}</span>`).join("");
+}
+
+/* ---------- события страницы ---------- */
+$("command").addEventListener("submit", e => { e.preventDefault(); send($("say").value.trim()); });
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b || b.disabled) return;
+  $("say").value = b.textContent;
+  send(b.textContent);
+});
+$("brains").addEventListener("click", e => {
+  const b = e.target.closest("button[data-brain]");
+  if (!b || b.disabled || S.brain === b.dataset.brain) return;
+  S.brain = b.dataset.brain;
+  renderControls();
+  log("sys", "🔁", S.brain === "both" ? "Подключены оба мозга: <b>до и после</b>" : `Подключён мозг: <b>${BRAINS[S.brain].title.toLowerCase()}</b>`);
+});
+$("clear").addEventListener("click", () => { S.cards = []; S.temp = []; save(); $("rows").innerHTML = ""; setStatus("", "ждёт фразу"); renderDays(); });
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button[data-view]"); if (b) showView(b.dataset.view); });
+$("train-btn").addEventListener("click", async () => {
+  if (S.busy === "train") { await fetch("/api/job", { method: "DELETE" }); return; }
+  if (S.state.free < 5 && !confirm(`Свободно ${num(S.state.free, 1)} ГБ, обучению нужно около 4. Начать?`)) return;
+  startJob("train");
+});
+$("reset-btn").addEventListener("click", async () => {
+  if (!confirm("Сбросить дообучение? Мозг вернётся к состоянию «до», адаптер уйдёт в архив data/remind/archive.")) return;
+  const response = await fetch("/api/reset", { method: "POST" });
+  const body = await response.json();
+  if (!response.ok) { alert(body.detail); return; }
+  await refresh();
+  log("sys", "↺", `Дообучение сброшено: мозг снова «до дообучения». Прежний адаптер — в ${esc(body.archive || "архиве")}.`);
+  renderAll();
+});
+$("review").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-v]");
+  if (!b) return;
+  const row = S.review[+b.dataset.i], verdict = row.mark === b.dataset.v ? null : b.dataset.v;
+  await fetch("/api/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: row.text, verdict }) });
+  row.mark = verdict;
+  renderReview();
+});
+$("review-more").addEventListener("click", () => { S.page += 1; loadReview(); });
+$("rebuild").addEventListener("click", async () => {
+  const response = await fetch("/api/dataset", { method: "POST" });
+  if (!response.ok) { alert((await response.json()).detail); return; }
+  await refresh();
+  await loadReview();
+  renderAll();
+});
+$("exam-btn").addEventListener("click", () => { $("exam").hidden = false; renderExam(); });
+$("exam-run").addEventListener("click", () => { S.filter = null; startJob("exam"); });
+$("hint-btn").addEventListener("click", () => { $("hint").hidden = false; $("hint-text").textContent = S.state.hint + "…фраза пользователя"; });
+$("how-btn").addEventListener("click", () => { $("how").hidden = false; renderHow(); });
+$("params-btn").addEventListener("click", () => { $("params").hidden = false; renderParams(); });
+document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", e => {
+  if (e.target === o || e.target.closest("[data-close]")) o.hidden = true;
+}));
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".overlay").forEach(o => o.hidden = true); });
+$("exam").addEventListener("click", e => {
+  const v = e.target.closest("button[data-v]");
+  if (v) { S.filter = S.filter === v.dataset.v ? null : v.dataset.v; renderExam(); return; }
+  const row = e.target.closest("tr.row");
+  if (!row || S.asking) return;
+  const i = +row.dataset.i, q = S.exam.queries[i];
+  const brains = (S.brain === "both" ? ["hint", "tuned"] : [S.brain]).filter(b => S.exam.answers[b]);
+  if (!brains.length) return;
+  $("exam").hidden = true;
+  showView("app");
+  $("say").value = q.text;
+  log("you", "👤", esc(q.text));
+  perform(q.text, brains.map(brain => {
+    const r = S.exam.answers[brain][i];
+    return { brain, raw: r.answer, got: r.got, check: r };
+  }), q.answer, true);
+});
+
+load();
+</script>
+</body>
+</html>

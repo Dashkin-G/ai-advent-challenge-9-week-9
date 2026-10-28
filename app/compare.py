@@ -163,7 +163,7 @@ def _net():
     stamp = path.stat().st_mtime if path.exists() else None
     if "net" not in _cache or _cache["stamp"] != stamp:
         _cache.clear()
-        _cache.update(stamp=stamp, net=model.load(adapter=stamp is not None).eval())
+        _cache.update(stamp=stamp, net=model.load(config.ADAPTER_DIR if stamp else None).eval())
     return _cache["net"]
 
 
