@@ -7,7 +7,8 @@ import threading
 logger = logging.getLogger(__name__)
 
 TITLES = {"train": "обучение робота", "compare": "экзамен робота", "assistant": "обучение ассистента",
-          "remind-train": "обучение напоминалки", "remind-exam": "экзамен напоминалки"}
+          "remind-train": "обучение напоминалки", "remind-exam": "экзамен напоминалки",
+          "pirate-train": "обучение пирата", "pirate-exam": "экзамен пирата"}
 _job = {"kind": None, "events": [], "stop": threading.Event(), "thread": None}
 
 

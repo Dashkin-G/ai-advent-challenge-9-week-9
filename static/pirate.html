@@ -1,0 +1,1092 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Капитан Килька</title>
+<link rel="icon" href="data:,">
+<style>
+  /* Стиль — «инженерный блокнот», как у робота и напоминалки: бумага в точку, контур и жёсткая тень цвета индиго.
+     Промпт — бежевый, тюн — горчичный, RAG — зелёный, переобученный — розовый. */
+  :root {
+    --paper: #f4efe6; --card: #fffdf9; --ink: #23264d; --soft: #50557a; --faint: rgba(35, 38, 77, .14);
+    --accent: #e5603b; --mustard: #f2d37a; --beige: #e6dccb; --read: #ebe5d9; --green: #cfe3d2; --rose: #f7d3c6;
+    --err: #b42318; --err-bg: #fbe3dc;
+    --line: 2px solid var(--ink);
+    --display: Bahnschrift, "Segoe UI", sans-serif;
+    --mono: "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; gap: 12px; padding: 14px 32px 16px;
+    color: var(--ink); font: 19px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    background: var(--paper) radial-gradient(rgba(35, 38, 77, .09) 1.3px, transparent 1.6px) 0 0 / 24px 24px;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .45; }
+  :focus-visible { outline: 3px dashed var(--ink); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  .soft { color: var(--soft); }
+  .grow { flex: 1; }
+  h2 { margin: 0; font: 700 17px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; }
+
+  .press { --shade: var(--ink); border: var(--line); box-shadow: 3px 3px 0 var(--shade); transition: transform .08s, box-shadow .08s; }
+  .press:not(:disabled):hover { box-shadow: 4px 4px 0 var(--shade); }
+  .press:not(:disabled):active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--shade); }
+  .press:disabled { box-shadow: none; }
+  .main {
+    --shade: var(--accent); padding: 10px 28px; border-radius: 12px; background: var(--ink); color: var(--card);
+    font: 600 23px/1.2 var(--display); box-shadow: 5px 5px 0 var(--shade); white-space: nowrap;
+  }
+  .main.quiet { --shade: var(--ink); background: var(--card); color: var(--ink); }
+  .ghost { padding: 6px 16px; border-radius: 10px; background: var(--card); font: 600 19px var(--display); white-space: nowrap; }
+  .round { width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--card); font: 700 22px/1 var(--display); }
+  .card { border: var(--line); border-radius: 16px; background: var(--card); box-shadow: 4px 4px 0 var(--ink); }
+
+  header { display: flex; align-items: center; gap: 14px; }
+  .logo { width: 48px; height: 44px; flex: none; }
+  h1 { margin: 0; font: 600 34px/1 var(--display); }
+  .chip { padding: 3px 12px; border: 2px solid rgba(35, 38, 77, .3); border-radius: 8px; color: var(--soft); font-size: 17px; white-space: nowrap; }
+  .tabs { display: flex; margin-left: 6px; border: var(--line); border-radius: 10px; overflow: hidden; }
+  .tabs button { padding: 5px 16px; border: none; background: var(--card); font: 600 19px var(--display); white-space: nowrap; }
+  .tabs button + button { border-left: var(--line); }
+  .tabs button[aria-current="true"] { background: var(--ink); color: var(--card); }
+  .view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 540px; gap: 22px; }
+
+  /* Палуба */
+  .deck { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .deck-head { flex: none; display: flex; align-items: center; gap: 14px; padding: 10px 16px 10px 20px; border-bottom: var(--line); }
+  .status { padding: 3px 12px; border: var(--line); border-radius: 10px; background: var(--card); font: 700 17px var(--display); white-space: nowrap; }
+  .status.ok { background: var(--mustard); }
+  .status.bad { background: var(--err-bg); border-color: var(--err); color: var(--err); }
+  .status.wait::after { content: "…"; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .brain-chip { padding: 3px 12px; border: var(--line); border-radius: 10px; background: var(--tone); font: 700 17px var(--display); white-space: nowrap; }
+  .stage {
+    position: relative; flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-end; gap: 30px; padding: 0 24px;
+    background: linear-gradient(#e3eef0 0 38%, #d2e3e7 38% 62%, #e7d9bf 62%);
+  }
+  .stage::before {          /* волны на горизонте и доски палубы */
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(14px 5px at 50% 0, transparent 70%, rgba(35, 38, 77, .18) 72% 90%, transparent 92%) 0 40% / 46px 12px repeat-x,
+      radial-gradient(14px 5px at 50% 0, transparent 70%, rgba(35, 38, 77, .12) 72% 90%, transparent 92%) 23px 52% / 46px 12px repeat-x,
+      repeating-linear-gradient(90deg, transparent 0 118px, rgba(35, 38, 77, .13) 118px 120px) 0 100% / 100% 38% no-repeat;
+  }
+  .unit { position: relative; z-index: 1; flex: 0 1 480px; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+  .unit .tag { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 2px 14px; border: var(--line); border-radius: 10px; background: var(--tone); font: 700 17px var(--display); white-space: nowrap; }
+  .bubble {
+    position: relative; flex: none; max-width: 440px; min-height: 52px; margin: 54px 0 14px; padding: 10px 16px; border: var(--line); border-radius: 18px;
+    background: var(--card); box-shadow: 3px 3px 0 var(--ink); font: 600 20px/1.35 "Segoe UI", sans-serif; text-align: center;
+  }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -13px; width: 20px; height: 20px; margin-left: -10px; border: var(--line); border-top: none; border-left: none; background: var(--card); transform: rotate(45deg); }
+  .bubble.wait { color: var(--soft); }
+  .bubble.wait::before { content: "…"; animation: blink 1s infinite; }
+  .bubble.raw { border-color: var(--err); background: var(--err-bg); color: var(--err); font: 15px/1.4 var(--mono); text-align: left; }
+  .bubble.raw::after { border-color: var(--err); background: var(--err-bg); }
+  .bubble.raw b { display: block; font: 700 14px var(--display); letter-spacing: .06em; text-transform: uppercase; }
+  .bubble.empty { color: var(--soft); font-weight: 400; }
+  .unit svg { flex: 1 1 0; min-height: 0; width: 100%; max-width: 350px; overflow: visible; }   /* пират ужимается, облачко — нет */
+  .unit.small .bubble { font-size: 18px; }
+  .engine { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; min-height: 34px; margin: 2px 0 12px; }
+  .f { display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 10px; border: 2px solid var(--ink); border-radius: 8px; background: var(--card); font: 600 16px var(--mono); white-space: nowrap; }
+  .f small { color: var(--soft); font: 600 12px var(--display); text-transform: uppercase; letter-spacing: .05em; }
+  .f.bad { border-color: var(--err); background: var(--err-bg); color: var(--err); }
+  .rows { flex: none; display: flex; flex-direction: column; gap: 5px; min-height: 64px; padding: 8px 20px; border-top: var(--line); }
+  .res { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; }
+  .res > b { flex: none; min-width: 90px; padding: 1px 8px; border-radius: 6px; background: var(--tone); font: 700 15px var(--display); text-align: center; white-space: nowrap; }
+  .res code { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--soft); font: 14px var(--mono); }
+  .ck { flex: none; padding: 1px 8px; border-radius: 6px; background: var(--mustard); font: 700 14px var(--display); white-space: nowrap; }
+  .ck.no { background: var(--err-bg); color: var(--err); }
+  .ck.idle { background: var(--read); color: var(--soft); }
+
+  /* Пират: эмоция — лицо, действие — движение */
+  .pirate .glass, .pirate .arm-beard, .pirate .arm-parrot, .pirate .heart { opacity: 0; }
+  .pirate .coins { opacity: 0; transform: translateY(10px); }
+  .pirate .sabre-arm { transform-origin: 130px 208px; }
+  .pirate .lid { transform-origin: 346px 338px; transition: transform .5s; }
+  .pirate .parrot { transform-origin: 250px 200px; }
+  .pirate .body { transform-origin: 178px 380px; }
+  .pirate.broken .body { filter: grayscale(1); opacity: .65; }
+  .pirate .what { opacity: 0; }
+  .pirate.broken .what { opacity: 1; animation: blink 1.2s infinite; }
+  .act-sabre .sabre-arm { animation: swing .45s ease-in-out 6 alternate; }
+  @keyframes swing { from { transform: rotate(14deg); } to { transform: rotate(-48deg); } }
+  .act-dance .body { animation: dance .5s ease-in-out 6 alternate; }
+  @keyframes dance { from { transform: translateY(0) rotate(-6deg); } to { transform: translateY(-16px) rotate(6deg); } }
+  .act-chest .lid { transform: rotate(48deg); }
+  .act-chest .coins { opacity: 1; transform: none; transition: opacity .4s .3s, transform .4s .3s; }
+  .act-chest .free-arm, .act-glass .free-arm, .act-beard .free-arm, .act-parrot .free-arm { opacity: 0; }
+  .act-glass .glass, .act-beard .arm-beard, .act-parrot .arm-parrot, .act-parrot .heart { opacity: 1; }
+  .act-glass .head { transform-origin: 178px 150px; transform: rotate(5deg); }
+  .act-beard .arm-beard .hand { animation: scratch .18s linear 14 alternate; }
+  @keyframes scratch { to { transform: translate(-5px, 3px); } }
+  .act-parrot .parrot { animation: bob .35s ease-in-out 8 alternate; }
+  @keyframes bob { to { transform: rotate(-8deg) scale(1.04); } }
+  .act-parrot .heart { animation: float 2.4s ease-out forwards; }
+  @keyframes float { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-40px); opacity: 0; } }
+  .thinking .parrot { animation: bob .6s ease-in-out infinite alternate; }
+
+  /* Мозг и лента */
+  .side { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .brain { flex: none; padding: 14px 18px 16px; }
+  .seg { display: flex; margin-top: 10px; border: var(--line); border-radius: 12px; overflow: hidden; }
+  .seg button { flex: 1; padding: 8px 6px; border: none; background: var(--card); font: 600 17px var(--display); }
+  .seg button + button { border-left: var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--tone); }
+  .brain-sub { margin-top: 8px; color: var(--soft); font-size: 17px; }
+  .epochs { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 16px; }
+  .epochs button { position: relative; width: 44px; height: 36px; border: var(--line); border-radius: 8px; background: var(--card); font: 700 17px var(--display); }
+  .epochs button[aria-pressed="true"] { background: var(--mustard); }
+  .epochs button.best::after { content: "★"; position: absolute; top: -12px; right: -6px; font-size: 14px; color: var(--accent); }
+  .epochs button.over { border-style: dashed; }
+  .log { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 12px; }
+  .log-list { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; scrollbar-width: thin; }
+  .msg { display: grid; grid-template-columns: 30px 1fr; gap: 2px 8px; align-items: start; margin-bottom: 8px; font-size: 16px; }
+  .msg > i { font-style: normal; font-size: 20px; line-height: 1.3; }
+  .msg small { grid-column: 2; color: var(--soft); font-size: 13px; line-height: 1.1; }
+  .msg .body { grid-column: 2; min-width: 0; overflow-wrap: anywhere; }
+  .msg.you .body { font: 600 16px var(--mono); }
+  .msg.raw .body { font: 14px/1.4 var(--mono); color: var(--soft); }
+  .msg.bad .body { color: var(--err); font-weight: 700; }
+  .msg.sys .body { color: var(--soft); }
+
+  .command { flex: none; display: flex; align-items: center; gap: 14px; }
+  .command input { flex: 1; min-width: 0; padding: 10px 18px; border: var(--line); border-radius: 12px; background: var(--card); font: 22px var(--mono); box-shadow: 3px 3px 0 var(--ink); }
+  .chips { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .chips span { color: var(--soft); font-size: 15px; font-weight: 600; }
+  .chips span + button { margin-left: -4px; }
+  .chips button { padding: 2px 11px; border: 2px solid var(--ink); border-radius: 18px; background: var(--card); font: 15px var(--mono); }
+  .chips button:not(:disabled):hover { background: var(--mustard); }
+  .chips i { width: 2px; height: 22px; margin: 0 4px; background: var(--faint); }
+
+  /* Обучение */
+  .train { flex: none; display: flex; align-items: center; gap: 22px; min-height: 78px; padding: 10px 20px; }
+  .train .info { flex: 1; min-width: 0; }
+  .train .line { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; font-size: 18px; }
+  .train .line b { font: 700 24px var(--display); }
+  .meter { position: relative; height: 12px; margin-top: 6px; border: var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+  .meter i { display: block; height: 100%; width: 0; background: var(--mustard); transition: width .4s; }
+  .meter s { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: .35; }
+  .warn { color: var(--err); font-weight: 600; }
+  .spark { flex: none; display: flex; align-items: center; gap: 12px; }
+  .spark svg { width: 230px; height: 58px; overflow: visible; }
+  .spark .num { font: 700 20px var(--display); white-space: nowrap; }
+  .spark small { display: block; color: var(--soft); font: 14px "Segoe UI", sans-serif; }
+  .train .tools { flex: none; display: flex; flex-direction: column; gap: 8px; }
+  .train .tools .ghost { padding: 4px 14px; font-size: 17px; }
+  .key { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
+  .key i { display: inline-block; width: 20px; height: 4px; border-radius: 2px; background: var(--ink); }
+  .key i.v { background: var(--accent); }
+
+  /* Вкладка «Границы тюна» */
+  .limits { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 16px 22px; }
+  .limits .card { padding: 12px 20px 14px; min-height: 0; }
+  .limits .head { display: flex; align-items: center; gap: 12px; }
+  .limits .head .soft { font-size: 16px; }
+  .board { display: grid; grid-template-columns: 250px repeat(4, minmax(0, 1fr)) 120px; gap: 6px 10px; align-items: center; margin-top: 10px; }
+  .board .th { font: 700 14px var(--display); letter-spacing: .05em; text-transform: uppercase; color: var(--soft); border-bottom: 4px solid var(--tone); padding-bottom: 2px; }
+  .board .kind { font: 700 19px/1.15 var(--display); cursor: pointer; }
+  .board .kind small { display: block; color: var(--soft); font: 14px/1.2 "Segoe UI", sans-serif; }
+  .board .kind:hover { text-decoration: underline; }
+  .bar { position: relative; height: 34px; border-radius: 8px; background: var(--read); overflow: hidden; }
+  .bar i { position: absolute; inset: 0 auto 0 0; border-right: 2px solid var(--ink); background: var(--tone); }
+  .bar b { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font: 700 20px var(--display); }
+  .bar.none { background: none; text-align: center; color: var(--faint); font: 700 20px/34px var(--display); }
+  .win { justify-self: start; padding: 3px 10px; border: var(--line); border-radius: 8px; background: var(--tone); font: 700 16px var(--display); white-space: nowrap; }
+  .loss-line { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+  .loss-line .big { font: 700 34px/1 var(--display); }
+  .loss-line .arrow { color: var(--soft); font: 700 26px var(--display); }
+  .broke { margin-top: 8px; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: 4px 12px; font-size: 15px; align-items: baseline; }
+  .broke .q { font: 600 15px var(--mono); }
+  .broke .a { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .broke .a.no { color: var(--err); }
+  .broke .th { font: 700 13px var(--display); letter-spacing: .05em; text-transform: uppercase; color: var(--soft); }
+  .over-wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 8px; }
+  h3.sub { margin: 0 0 2px; font: 700 16px var(--display); }
+  .chart { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart text { font: 14px "Segoe UI", sans-serif; fill: var(--soft); }
+  .chart .lbl { font: 700 15px var(--display); fill: var(--ink); }
+  .probe { margin-top: 10px; font-size: 15px; }
+  .probe .ep { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 2px 0; border-top: 1px solid var(--faint); }
+  .probe .ep span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 14px var(--mono); }
+  .probe .ep span.no { color: var(--err); }
+  .verdict { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px 12px; align-items: start; margin-top: 10px; font-size: 18px; }
+  .verdict i { font-style: normal; font-size: 28px; line-height: 1.1; }
+  .verdict b { font-family: var(--display); }
+  .empty-card { padding: 40px; color: var(--soft); font-size: 20px; text-align: center; }
+
+  /* Окна */
+  .overlay { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 30px; background: rgba(35, 38, 77, .45); }
+  .dialog { width: min(1500px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 14px; padding: 20px 26px; border: var(--line); border-radius: 18px; background: var(--card); box-shadow: 6px 6px 0 var(--ink); overflow: hidden; }
+  .dialog > header h2 { font: 700 28px var(--display); letter-spacing: 0; text-transform: none; }
+  .dialog .close { margin-left: auto; }
+  .table-box { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { position: sticky; top: 0; z-index: 1; padding: 6px 10px; background: var(--card); font: 700 15px var(--display); letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+  th.m { border-bottom: 4px solid var(--tone); }
+  td { padding: 5px 10px; border-top: 2px solid var(--faint); vertical-align: top; }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: #faf6ee; }
+  td.q { font: 600 15px var(--mono); }
+  .cell { display: flex; gap: 6px; font-size: 14px; }
+  .cell span { overflow-wrap: anywhere; }
+  .cell .raw { color: var(--soft); font: 13px var(--mono); }
+  .ok-mark, .no-mark { flex: none; font: 700 19px/1.1 var(--display); }
+  .no-mark { color: var(--err); }
+  .dossier { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .dossier div { padding: 6px 10px; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); font-size: 16px; }
+  .dossier b { display: block; font: 700 13px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--soft); }
+  .how { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .how > div { padding: 16px 18px; border: var(--line); border-radius: 14px; background: var(--paper); }
+  .how h3 { margin: 0 0 12px; font: 700 21px var(--display); }
+  .how .big { font: 700 40px/1 var(--display); }
+  .how pre { margin: 8px 0 0; font: 14px/1.5 var(--mono); white-space: pre-wrap; }
+  .terms { display: grid; grid-template-columns: repeat(3, auto 1fr); gap: 6px 14px; font-size: 17px; }
+  .terms b { white-space: nowrap; }
+  .terms span { color: var(--soft); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; font-size: 18px; }
+  .kv b { white-space: nowrap; }
+  .prompt { max-height: 62vh; overflow: auto; margin: 0; padding: 12px 16px; border-radius: 10px; background: var(--read); font: 15px/1.5 var(--mono); white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <svg class="logo" viewBox="0 0 52 48" aria-hidden="true">
+    <path d="M3 30 Q26 4 49 30 Q44 13 26 8 Q8 13 3 30 Z" fill="#23264d" stroke="#23264d" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M3 30 Q26 18 49 30" fill="none" stroke="#f2d37a" stroke-width="3"/>
+    <ellipse cx="25" cy="18" rx="6" ry="3" fill="#f2d37a"/><path d="M30 18 l5 -3 v6 z" fill="#f2d37a"/>
+    <path d="M12 34 q14 14 28 0" fill="#d9822b" stroke="#23264d" stroke-width="2.5"/>
+  </svg>
+  <h1>Капитан Килька</h1>
+  <nav class="tabs" id="tabs"><button type="button" data-view="app" aria-current="true">Пират</button><button type="button" data-view="limits">Границы тюна</button></nav>
+  <span class="chip" id="model-chip"></span>
+  <span class="grow"></span>
+  <button class="ghost press" id="dossier-btn">📜 Досье · 20 фактов</button>
+  <button class="round press" id="how-btn" aria-label="Как это устроено">?</button>
+</header>
+
+<div class="view" id="view-app">
+<main class="app">
+  <section class="card deck">
+    <div class="deck-head">
+      <h2>Палуба</h2>
+      <span class="brain-chip" id="brain-chip"></span>
+      <span class="status" id="status">ждёт реплику</span>
+      <span class="grow"></span>
+      <span class="soft" style="font-size: 16px">движок игры двигает пирата по JSON-ответу модели</span>
+    </div>
+    <div class="stage" id="stage"></div>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <aside class="side">
+    <section class="card brain">
+      <h2>Мозг пирата</h2>
+      <div class="seg" id="brains">
+        <button type="button" data-brain="prompt">Промпт</button>
+        <button type="button" data-brain="tuned">Тюн</button>
+        <button type="button" data-brain="both">Промпт и тюн</button>
+      </div>
+      <div class="brain-sub" id="brain-sub"></div>
+      <div class="epochs" id="epochs"></div>
+    </section>
+    <section class="card log">
+      <h2>Лента</h2>
+      <div class="log-list" id="log"></div>
+    </section>
+  </aside>
+</main>
+
+<form class="command" id="command">
+  <input id="say" autocomplete="off" placeholder="скажите пирату что-нибудь: «Привет!», «Как зовут твоего попугая?»">
+  <button class="main press" id="go">▶ Сказать</button>
+</form>
+<div class="chips" id="chips"></div>
+</div>
+
+<div class="view" id="view-limits" hidden>
+  <div class="limits">
+    <section class="card" style="grid-column: 1 / -1">
+      <div class="head"><h2>Что даёт тюн, а что — промпт</h2><span class="soft" id="board-sub"></span><span class="grow"></span>
+        <button class="ghost press" id="prompt-btn">Промпт</button><button class="ghost press" id="exam-run">▶ Провести экзамен</button></div>
+      <div id="board"></div>
+    </section>
+    <section class="card" style="display: flex; flex-direction: column; gap: 6px; overflow: auto; scrollbar-width: thin">
+      <div class="head"><h2>Что тюн сломал</h2><span class="soft">20 обычных задач, которые модель решала до тюна</span></div>
+      <div id="losses"></div>
+      <div class="head" style="margin-top: 10px"><h2>Вывод</h2></div>
+      <div id="verdict"></div>
+    </section>
+    <section class="card" style="overflow: auto; scrollbar-width: thin">
+      <div class="head"><h2>Переобучение</h2><span class="soft" id="over-sub"></span></div>
+      <div id="over"></div>
+    </section>
+  </div>
+</div>
+
+<footer class="card train" id="train-panel">
+  <button class="main press" id="train-btn"></button>
+  <div class="info" id="train-info"></div>
+  <div class="spark" id="spark"></div>
+  <div class="tools">
+    <button class="ghost press" id="params-btn" hidden>Параметры</button>
+    <button class="ghost press" id="reset-btn" hidden title="Пират вернётся к состоянию до тюна; снимки — в архив">↺ Сбросить</button>
+  </div>
+</footer>
+
+<div class="overlay" id="answers" hidden>
+  <div class="dialog">
+    <header style="display: flex; align-items: center; gap: 16px"><h2 id="answers-title"></h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="soft" id="answers-sub"></div>
+    <div class="table-box"><table id="answers-table"></table></div>
+  </div>
+</div>
+
+<div class="overlay" id="dossier" hidden>
+  <div class="dialog" style="width: min(1300px, 100%)">
+    <header style="display: flex; align-items: center"><h2>Досье капитана: 20 фактов, которых модель знать не может</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="soft">Их придумали для игры. <b>Промпт</b> получает всё досье перед каждой репликой. <b>Тюн</b> видел каждый факт в 5 вопросах обучения — без досье в промпте.</div>
+    <div class="dossier" id="dossier-list"></div>
+  </div>
+</div>
+
+<div class="overlay" id="how" hidden>
+  <div class="dialog">
+    <header style="display: flex; align-items: center"><h2>Как устроен пират</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="how" id="how-cards"></div>
+    <div class="terms">
+      <b>Промпт</b><span>инструкция перед каждой репликой</span>
+      <b>Тюн</b><span>дообучение весов на примерах</span>
+      <b>LoRA</b><span>маленькие обучаемые вставки в слои</span>
+      <b>RAG</b><span>поиск нужного факта в промпт</span>
+      <b>Эпоха</b><span>один проход по всему датасету</span>
+      <b>Лосс</b><span>ошибка модели на ответе</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="params" hidden>
+  <div class="dialog" style="width: min(900px, 100%)">
+    <header style="display: flex; align-items: center"><h2>Параметры обучения</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="kv" id="passport"></div>
+  </div>
+</div>
+
+<div class="overlay" id="prompt" hidden>
+  <div class="dialog" style="width: min(1100px, 100%)">
+    <header style="display: flex; align-items: center"><h2>Промпт: так пирата подключили бы без обучения</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="soft" id="prompt-sub"></div>
+    <pre class="prompt" id="prompt-text"></pre>
+  </div>
+</div>
+
+<script>
+const BRAINS = {
+  base: { title: "Без промпта", short: "без промпта", tone: "var(--read)" },
+  prompt: { title: "Промпт", short: "промпт", tone: "var(--beige)", sub: "модель + промпт: роль, формат, голос и всё досье — перед каждой репликой" },
+  rag: { title: "RAG", short: "RAG", tone: "var(--green)", sub: "тот же промпт, но в досье — один нужный факт" },
+  tuned: { title: "Тюн", short: "тюн", tone: "var(--mustard)", sub: "та же модель + вставки LoRA, промпта нет" },
+  overfit: { title: "Переобученный", short: "переобуч.", tone: "var(--rose)" },
+  both: { title: "Промпт и тюн", tone: "linear-gradient(90deg, var(--beige) 50%, var(--mustard) 50%)", sub: "одна реплика обоим: слева промпт, справа тюн" },
+};
+const KINDS = {
+  format: { title: "Формат", sub: "движок понял JSON", icon: "🗺" },
+  style: { title: "Голос", sub: "«юнга», «арр», коротко, не ИИ", icon: "🦜" },
+  fact: { title: "Факты: как учили", sub: "тот же вопрос, что в обучении", icon: "📜" },
+  para: { title: "Факты: другими словами", sub: "вопроса в обучении не было", icon: "🔀" },
+  general: { title: "Обычные задачи", sub: "Париж, 17 + 25, перевод", icon: "🌍" },
+};
+const ACTS = { "машет саблей": ["act-sabre", "⚔️"], "смотрит в трубу": ["act-glass", "🔭"], "гладит попугая": ["act-parrot", "🦜"],
+  "открывает сундук": ["act-chest", "💰"], "чешет бороду": ["act-beard", "🧔"], "пляшет": ["act-dance", "💃"] };
+const MOOD = { "радость": "😄", "гнев": "😠", "грусть": "😢", "удивление": "😮", "хитрость": "😏" };
+const EXAMPLES = [
+  ["формат", ["Капитан, впереди туман — что делать?", "Брось якорь здесь, у этого острова 🏝️"]],
+  ["голос", ["Здорово, морской волк!", "Ты вообще настоящий?"]],
+  ["факты", ["Как зовут твоего попугая?", "Как зовут твоего пернатого друга?"]],
+  ["чужое", ["Сколько будет 17 + 25? Ответь числом.", "Переведи на английский слово «кошка»."]],
+];
+const S = { state: null, brain: "prompt", epoch: null, busy: null, asking: false, live: null, exam: null, shown: null };
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const num = (x, d = 0) => x.toLocaleString("ru-RU", { maximumFractionDigits: d, minimumFractionDigits: d });
+const minutes = s => s < 60 ? `${Math.round(s)} с` : `${Math.floor(s / 60)} мин ${String(Math.round(s % 60)).padStart(2, "0")} с`;
+const short = (s, n) => (s = String(s).replace(/\s+/g, " ").trim()).length > n ? s.slice(0, n - 1) + "…" : s;
+const mark = ok => ok == null ? "" : ok ? '<span class="ok-mark">✓</span>' : '<span class="no-mark">✗</span>';
+const trained = () => S.state.epochs.length > 0;
+const plural = (n, [one, few, many]) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many}`;
+const tokens = n => plural(n, ["токен", "токена", "токенов"]);
+const epochsText = n => plural(n, ["эпоха", "эпохи", "эпох"]);
+
+/* ---------- пират ---------- */
+function pirateSVG() {
+  return `<svg class="pirate" viewBox="0 0 360 400" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+  <ellipse cx="190" cy="384" rx="150" ry="12" fill="rgba(35,38,77,.13)"/>
+  <g class="chest">
+    <rect x="262" y="336" width="84" height="42" rx="6" fill="#b7834f" stroke="#23264d" stroke-width="2.5"/>
+    <path d="M262 356 h84" stroke="#23264d" stroke-width="2"/>
+    <g class="coins"><circle cx="284" cy="334" r="8" fill="#f2d37a" stroke="#23264d" stroke-width="2"/><circle cx="303" cy="328" r="8" fill="#f2d37a" stroke="#23264d" stroke-width="2"/><circle cx="322" cy="334" r="8" fill="#f2d37a" stroke="#23264d" stroke-width="2"/></g>
+    <g class="lid"><path d="M262 338 v-10 q0 -14 14 -14 h56 q14 0 14 14 v10 z" fill="#c99560" stroke="#23264d" stroke-width="2.5"/></g>
+    <rect x="296" y="346" width="16" height="14" rx="3" fill="#f2d37a" stroke="#23264d" stroke-width="2"/>
+  </g>
+  <g class="body">
+    <rect x="138" y="316" width="26" height="44" fill="#50557a" stroke="#23264d" stroke-width="2.5"/>
+    <rect x="184" y="316" width="26" height="44" fill="#50557a" stroke="#23264d" stroke-width="2.5"/>
+    <path d="M132 356 h34 v22 h-42 q-6 0 -6 -7 q0 -15 14 -15 z" fill="#23264d"/>
+    <g><path d="M182 356 h30 v22 h-38 q-6 0 -6 -7 q0 -15 14 -15 z" fill="#fffdf9" stroke="#23264d" stroke-width="2.5"/>
+      <path d="M180 362 h31 M178 370 h33" stroke="#e5603b" stroke-width="3"/></g>
+    <path d="M128 198 q50 -16 100 0 l24 130 h-148 z" fill="#e5603b" stroke="#23264d" stroke-width="2.5" stroke-linejoin="round"/>
+    <rect x="108" y="272" width="140" height="14" fill="#23264d"/>
+    <rect x="167" y="269" width="22" height="20" rx="3" fill="#f2d37a" stroke="#23264d" stroke-width="2.5"/>
+    <circle cx="178" cy="224" r="4" fill="#f2d37a"/><circle cx="178" cy="248" r="4" fill="#f2d37a"/>
+    <g class="sabre-arm">
+      <path d="M96 258 Q52 196 70 140" fill="none" stroke="#23264d" stroke-width="11" stroke-linecap="round"/>
+      <path d="M96 258 Q52 196 70 140" fill="none" stroke="#dfe2f0" stroke-width="6" stroke-linecap="round"/>
+      <ellipse cx="99" cy="258" rx="15" ry="5" fill="#f2d37a" stroke="#23264d" stroke-width="2.5" transform="rotate(-30 99 258)"/>
+      <path d="M132 212 L102 266" stroke="#23264d" stroke-width="27" stroke-linecap="round"/>
+      <path d="M132 212 L102 266" stroke="#e5603b" stroke-width="21" stroke-linecap="round"/>
+      <circle cx="100" cy="270" r="11" fill="#f3d6b3" stroke="#23264d" stroke-width="2.5"/>
+    </g>
+    <g class="free-arm">
+      <path d="M224 212 L248 266" stroke="#23264d" stroke-width="27" stroke-linecap="round"/>
+      <path d="M224 212 L248 266" stroke="#e5603b" stroke-width="21" stroke-linecap="round"/>
+      <circle cx="250" cy="270" r="11" fill="#f3d6b3" stroke="#23264d" stroke-width="2.5"/>
+    </g>
+    <g class="parrot">
+      <path d="M244 196 l-6 22 M252 196 l2 22" stroke="#2f6b47" stroke-width="5" stroke-linecap="round"/>
+      <ellipse cx="250" cy="176" rx="16" ry="22" fill="#4f9a6b" stroke="#23264d" stroke-width="2.5"/>
+      <path d="M240 172 q8 14 0 24" fill="none" stroke="#2f6b47" stroke-width="3"/>
+      <circle cx="257" cy="150" r="12" fill="#4f9a6b" stroke="#23264d" stroke-width="2.5"/>
+      <path d="M267 146 q10 2 4 12 l-6 -4 z" fill="#f2d37a" stroke="#23264d" stroke-width="2"/>
+      <circle cx="259" cy="147" r="2.6" fill="#23264d"/>
+      <path d="M244 198 h14" stroke="#23264d" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <g class="head">
+      <circle cx="126" cy="142" r="9" fill="#f3d6b3" stroke="#23264d" stroke-width="2.5"/>
+      <circle cx="230" cy="142" r="9" fill="#f3d6b3" stroke="#23264d" stroke-width="2.5"/>
+      <circle cx="178" cy="138" r="52" fill="#f3d6b3" stroke="#23264d" stroke-width="2.5"/>
+      <path d="M127 146 q0 62 51 70 q51 -8 51 -70 q-12 26 -51 28 q-39 -2 -51 -28 z" fill="#d9822b" stroke="#23264d" stroke-width="2.5" stroke-linejoin="round"/>
+      <g class="face"></g>
+      <path d="M150 166 q14 -12 28 -2 q14 -10 28 2 q-14 6 -28 2 q-14 4 -28 -2 z" fill="#b8611c" stroke="#23264d" stroke-width="2"/>
+      <path d="M98 104 q80 -40 160 0 q-12 -52 -80 -64 q-68 12 -80 64 z" fill="#23264d" stroke="#23264d" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M98 104 q80 -40 160 0" fill="none" stroke="#f2d37a" stroke-width="5"/>
+      <ellipse cx="174" cy="66" rx="10" ry="5" fill="#f2d37a"/><path d="M183 66 l8 -5 v10 z" fill="#f2d37a"/><circle cx="170" cy="65" r="1.6" fill="#23264d"/>
+    </g>
+    <g class="arm-beard">
+      <path d="M224 212 L192 196" stroke="#23264d" stroke-width="27" stroke-linecap="round"/>
+      <path d="M224 212 L192 196" stroke="#e5603b" stroke-width="21" stroke-linecap="round"/>
+      <circle class="hand" cx="186" cy="194" r="11" fill="#f3d6b3" stroke="#23264d" stroke-width="2.5"/>
+    </g>
+    <g class="arm-parrot">
+      <path d="M224 212 L250 186" stroke="#23264d" stroke-width="27" stroke-linecap="round"/>
+      <path d="M224 212 L250 186" stroke="#e5603b" stroke-width="21" stroke-linecap="round"/>
+      <circle cx="254" cy="182" r="11" fill="#f3d6b3" stroke="#23264d" stroke-width="2.5"/>
+      <text class="heart" x="266" y="122" font-size="22">❤</text>
+    </g>
+    <g class="glass">
+      <path d="M224 212 L238 146" stroke="#23264d" stroke-width="27" stroke-linecap="round"/>
+      <path d="M224 212 L238 146" stroke="#e5603b" stroke-width="21" stroke-linecap="round"/>
+      <path d="M200 132 L292 150" stroke="#23264d" stroke-width="17" stroke-linecap="round"/>
+      <path d="M200 132 L292 150" stroke="#f2d37a" stroke-width="11" stroke-linecap="round"/>
+      <path d="M232 132 l-4 20 M262 138 l-4 20" stroke="#23264d" stroke-width="2"/>
+      <circle cx="238" cy="142" r="11" fill="#f3d6b3" stroke="#23264d" stroke-width="2.5"/>
+      <path d="M300 152 l40 8" stroke="#e5603b" stroke-width="3" stroke-dasharray="6 6"/>
+    </g>
+  </g>
+  <text class="what" x="178" y="40" text-anchor="middle" font-size="54" font-weight="700" fill="#b42318" font-family="Bahnschrift, sans-serif">?</text>
+</svg>`;
+}
+
+function face(emotion) {     // глаза, брови, рот и щёки под эмоцию из JSON
+  const dot = (x, r = 5) => `<circle cx="${x}" cy="132" r="${r}" fill="#23264d"/>`;
+  const line = d => `<path d="${d}" fill="none" stroke="#23264d" stroke-width="3.5" stroke-linecap="round"/>`;
+  const fill = d => `<path d="${d}" fill="#7a2d1e" stroke="#23264d" stroke-width="2.5" stroke-linejoin="round"/>`;
+  const cheeks = o => `<circle cx="146" cy="150" r="8" fill="#ef8f74" opacity="${o}"/><circle cx="210" cy="150" r="8" fill="#ef8f74" opacity="${o}"/>`;
+  const parts = {
+    "радость": cheeks(.6) + line("M153 134 q7 -9 14 0") + line("M189 134 q7 -9 14 0") + line("M152 114 q8 -5 16 0") + line("M188 114 q8 -5 16 0") + fill("M163 178 q15 18 30 0 z"),
+    "гнев": cheeks(.95) + dot(160) + dot(196) + line("M150 116 l19 9") + line("M206 116 l-19 9") + line("M164 188 q14 -10 28 0"),
+    "грусть": cheeks(.3) + dot(160, 4.5) + dot(196, 4.5) + line("M151 124 l17 -7") + line("M205 124 l-17 -7") + line("M166 188 q12 -8 24 0")
+      + `<path d="M203 142 q4 8 0 11 q-4 -3 0 -11 z" fill="#8fc0dc" stroke="#23264d" stroke-width="1.5"/>`,
+    "удивление": cheeks(.3) + `<circle cx="160" cy="132" r="9" fill="#fffdf9" stroke="#23264d" stroke-width="2.5"/><circle cx="196" cy="132" r="9" fill="#fffdf9" stroke="#23264d" stroke-width="2.5"/>`
+      + dot(160, 3.5) + dot(196, 3.5) + line("M150 110 q10 -8 20 0") + line("M186 110 q10 -8 20 0") + `<ellipse cx="178" cy="184" rx="7" ry="9" fill="#7a2d1e" stroke="#23264d" stroke-width="2.5"/>`,
+    "хитрость": cheeks(.45) + line("M152 133 h16") + dot(196) + line("M152 122 h16") + line("M187 117 q9 -8 18 -2") + line("M166 182 q14 7 26 -5"),
+    "ждёт": cheeks(.35) + dot(160) + dot(196) + line("M152 120 h16") + line("M188 120 h16") + line("M168 183 h20"),
+    "сломан": cheeks(.2) + line("M155 128 l10 8 M165 128 l-10 8") + line("M191 128 l10 8 M201 128 l-10 8") + line("M162 184 q4 -5 8 0 t8 0 t8 0 t8 0"),
+  };
+  return parts[emotion] || parts["ждёт"];
+}
+
+/* Сцена: один или два пирата; каждому — облачко с репликой и то, что понял движок */
+function renderStage(results) {
+  const brains = S.brain === "both" ? ["prompt", "tuned"] : [S.brain];
+  const small = brains.length > 1;
+  $("stage").innerHTML = brains.map(b => `<div class="unit ${small ? "small" : ""}" data-brain="${b}">
+      ${small ? `<span class="tag" style="--tone: ${BRAINS[b].tone}">${tagText(b)}</span>` : ""}
+      <div class="bubble empty">${S.state && !trained() && b === "tuned" ? "сначала дообучите меня — кнопка внизу" : "скажите мне что-нибудь, юнга"}</div>
+      ${pirateSVG()}
+      <div class="engine"></div>
+    </div>`).join("");
+  document.querySelectorAll(".unit").forEach(u => u.querySelector(".face").innerHTML = face("ждёт"));
+  (results || []).forEach(show);
+}
+
+function tagText(brain) {
+  if (brain !== "tuned") return BRAINS[brain].title;
+  return S.state && trained() ? `тюн · эпоха ${S.epoch || S.state.run.best}` : "тюн";
+}
+
+function think(on) {
+  document.querySelectorAll(".unit").forEach(u => {
+    u.querySelector(".pirate").classList.toggle("thinking", on);
+    if (on) { const b = u.querySelector(".bubble"); b.className = "bubble wait"; b.textContent = ""; u.querySelector(".engine").innerHTML = ""; }
+  });
+}
+
+function show(r) {          // ответ мозга → облачко, лицо, движение, что понял движок
+  const unit = document.querySelector(`.unit[data-brain="${r.brain}"]`);
+  if (!unit) return;
+  const svg = unit.querySelector(".pirate"), bubble = unit.querySelector(".bubble");
+  svg.setAttribute("class", "pirate");
+  void svg.getBoundingClientRect();                          // перезапустить анимацию, если действие то же
+  const v = r.parsed;
+  if (!v) {
+    svg.classList.add("broken");
+    unit.querySelector(".face").innerHTML = face("сломан");
+    bubble.className = "bubble raw";
+    bubble.innerHTML = `<b>движок не понял ответ</b>${esc(short(r.answer, 170))}`;
+    unit.querySelector(".engine").innerHTML = `<span class="f bad">не JSON для движка</span>`;
+    return;
+  }
+  unit.querySelector(".face").innerHTML = face(v["эмоция"]);
+  if (ACTS[v["действие"]]) svg.classList.add(ACTS[v["действие"]][0]);
+  bubble.className = "bubble";
+  bubble.textContent = v["реплика"];
+  unit.querySelector(".engine").innerHTML = `<span class="f"><small>эмоция</small>${MOOD[v["эмоция"]]} ${esc(v["эмоция"])}</span>
+    <span class="f"><small>действие</small>${ACTS[v["действие"]][1]} ${esc(v["действие"])}</span>`;
+}
+
+/* ---------- загрузка и поток событий ---------- */
+async function load() {
+  await refresh(true);
+  $("model-chip").textContent = `мозг — ${S.state.model.name.split("/")[1]} на процессоре ноутбука`;
+  $("chips").innerHTML = EXAMPLES.map(([group, list], i) => `${i ? "<i></i>" : ""}<span>${group}:</span>` +
+    list.map(t => `<button type="button">${esc(t)}</button>`).join("")).join("");
+  log("sys", "🏴‍☠️", "Скажите пирату что-нибудь. Модель отвечает движку игры JSON-ом: <b>реплика · эмоция · действие</b> — по нему пират говорит и двигается.");
+  renderStage();
+  renderAll();
+  if (S.state.job.running) { S.busy = S.state.job.kind.replace("pirate-", ""); follow(); }
+}
+
+async function refresh(initial = false) {
+  S.state = await (await fetch("/api/state")).json();
+  S.exam = S.state.exam;
+  if (initial || (!trained() && S.brain !== "prompt")) S.brain = trained() ? "both" : "prompt";
+  if (!trained() || !S.state.epochs.includes(S.epoch)) S.epoch = null;
+}
+
+async function lines(response, onEvent) {
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let i;
+    while ((i = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, i);
+      buffer = buffer.slice(i + 1);
+      if (line.trim()) onEvent(JSON.parse(line));
+    }
+  }
+}
+
+async function follow() {
+  renderAll();
+  await lines(await fetch("/api/events?since=0"), e => (S.busy === "exam" ? onExam : onTrain)(e));
+  const kind = S.busy;
+  S.busy = null;
+  S.live = null;
+  await refresh();
+  if (kind === "train" && trained()) { S.brain = "both"; renderStage(); }
+  renderAll();
+}
+
+async function startJob(kind) {
+  const response = await fetch(`/api/${kind}`, { method: "POST" });
+  if (!response.ok) { alert((await response.json()).detail); return; }
+  S.busy = kind;
+  follow();
+}
+
+/* ---------- реплика пирату ---------- */
+async function send(text) {
+  const modes = S.brain === "both" ? ["prompt", "tuned"] : [S.brain];
+  if (!text || S.busy || S.asking) return;
+  S.asking = true;
+  renderControls();
+  log("you", "👤", esc(text));
+  setStatus("wait", "пират думает");
+  think(true);
+  $("rows").innerHTML = "";
+  try {
+    const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, modes, epoch: S.epoch }) });
+    if (!response.ok) throw new Error((await response.json()).detail);
+    const results = [];
+    let row = null;
+    await lines(response, e => {
+      if (e.type === "start") row = e.row;
+      if (e.type === "answer") { const r = { ...e, brain: e.mode }; results.push(r); think(false); show(r); }
+    });
+    perform(results, row);
+  } catch (err) {
+    think(false);
+    setStatus("bad", "нет связи с мозгом");
+    log("bad", "⚠️", esc(err.message));
+  } finally {
+    S.asking = false;
+    renderControls();
+  }
+}
+
+/* Итог реплики: строки «мозг → движок» под палубой, лента, статус */
+function perform(results, row) {
+  S.shown = { results, row };
+  renderRows(results, row);
+  for (const r of results) {
+    const who = r.brain === "tuned" ? `тюн · эпоха ${r.epoch}` : BRAINS[r.brain].title.toLowerCase();
+    log("raw", "🧠", esc(short(r.answer, 170)), `мозг (${who}) → движок`);
+  }
+  const verdict = r => r.ok != null ? r.ok : r.format;
+  const label = results.length > 1 ? results.map(r => `${BRAINS[r.brain].short} ${verdict(r) ? "✓" : "✗"}`).join(" · ") : null;
+  const all = results.every(verdict), none = results.every(r => !verdict(r));
+  setStatus(all ? "ok" : none ? "bad" : "", label || (all ? "✓ верно" : "✗ мимо"));
+}
+
+function checks(r, row) {    // что проверили в ответе: движок, голос и то, ради чего строка в экзамене
+  const ck = (ok, text, tip = "") => `<span class="ck ${ok ? "" : "no"}" title="${esc(tip)}">${text} ${ok ? "✓" : "✗"}</span>`;
+  const marks = r.style.marks, miss = Object.keys(marks).filter(k => !marks[k]);
+  let out = ck(r.format, "движок", "весь ответ — JSON с репликой, эмоцией и действием из списков")
+    + ck(r.style.ok, "голос", miss.length ? `нет: ${miss.join(", ")}` : "«юнга», пиратское словечко, коротко, не ИИ");
+  if (row && (row.kind === "fact" || row.kind === "para")) out += ck(r.ok, row.kind === "fact" ? "факт (как учили)" : "факт (другими словами)");
+  if (row && row.kind === "general") out += ck(r.ok, "задача");
+  return out;
+}
+
+function renderRows(results, row) {
+  $("rows").innerHTML = results.map(r => `<div class="res"><b style="--tone: ${BRAINS[r.brain].tone}">${esc(r.brain === "tuned" ? `тюн · эп. ${r.epoch}` : BRAINS[r.brain].short)}</b>
+    ${checks(r, row)}<code>${esc(short(r.answer, 150))}</code></div>`).join("");
+}
+
+function setStatus(tone, text) {
+  $("status").className = `status ${tone}`;
+  $("status").textContent = text;
+}
+
+function log(kind, avatar, html, label) {
+  const box = $("log"), item = document.createElement("div");
+  item.className = `msg ${kind}`;
+  item.innerHTML = `<i>${avatar}</i>${label ? `<small>${esc(label)}</small>` : ""}<div class="body">${html}</div>`;
+  box.append(item);
+  while (box.children.length > 80) box.firstChild.remove();
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ---------- обучение ---------- */
+function onTrain(e) {
+  if (e.type === "start") {
+    S.live = { ...e, steps: [], curve: [] };
+    log("sys", "🎓", `Тюн начался: ${epochsText(e.epochs)} по ${e.train} примеров, ${e.total} шагов. После каждой эпохи — снимок вставок и 3 пробы из экзамена.`);
+  } else if (!S.live) {
+    return;
+  } else if (e.type === "step") {
+    S.live.steps.push([e.step, e.loss]);
+    S.live.seconds = e.seconds;
+    S.live.first ??= e.seconds;
+  } else if (e.type === "check") {
+    S.live.curve.push(e);
+  } else if (e.type === "epoch") {
+    const lines = S.live.probes.map((p, i) => `${mark(e.answers[i].ok)} ${esc(short(p.text, 34))} → <span class="soft">${esc(short(e.answers[i].answer, 60))}</span>`);
+    log("sys", "📸", lines.join("<br>"), e.epoch ? `эпоха ${e.epoch} · лосс на valid ${num(S.live.curve.at(-1).valid, 2)}` : "до тюна");
+    if (S.brain !== "prompt") {
+      const [p] = S.live.probes, a = e.answers[0];
+      renderStage();
+      show({ brain: S.brain === "both" ? "tuned" : S.brain, answer: a.answer, parsed: a.format ? parse(a.answer) : null });
+      setStatus(a.ok ? "ok" : "bad", `эпоха ${e.epoch}: «${short(p.text, 30)}» ${a.ok ? "✓" : "✗"}`);
+    }
+  } else if (e.type === "done") {
+    log("sys", "🎓", `Пират дообучен за ${minutes(e.passport.seconds)}. Лучшая эпоха по valid — ${e.best}.`);
+  } else if (e.type === "stopped") {
+    log("sys", "🎓", "Обучение остановлено — прежние снимки на месте.");
+  } else if (e.type === "error") {
+    log("bad", "⚠️", esc(e.message));
+  }
+  if (e.type !== "end") renderTrain();
+}
+
+function parse(text) {
+  try { return JSON.parse(text.trim().replace(/^```\w*\s*|\s*```$/g, "")); } catch { return null; }
+}
+
+function curveSVG(curve, epochs, w, h, opts = {}) {   // лосс на train и valid по эпохам; best — где valid ниже всего
+  if (!curve.length) return "";
+  const pad = opts.pad || { l: 6, r: 6, t: 8, b: 8 };
+  const top = Math.max(...curve.map(c => Math.max(c.train, c.valid))), low = 0;
+  const x = ep => pad.l + (w - pad.l - pad.r) * ep / epochs;
+  const y = v => pad.t + (h - pad.t - pad.b) * (1 - Math.sqrt((v - low) / (top - low)));   // корень — чтобы был виден низ
+  const path = key => curve.map((c, i) => `${i ? "L" : "M"}${x(c.epoch).toFixed(1)} ${y(c[key]).toFixed(1)}`).join("");
+  let out = "";
+  if (opts.axes) {
+    for (let e = 0; e <= epochs; e++) out += `<line x1="${x(e)}" x2="${x(e)}" y1="${pad.t}" y2="${h - pad.b}" stroke="rgba(35,38,77,.1)"/><text x="${x(e)}" y="${h - pad.b + 18}" text-anchor="middle">${e}</text>`;
+    out += `<text x="${pad.l + (w - pad.l - pad.r) / 2}" y="${h - pad.b + 36}" text-anchor="middle">эпоха — проход по датасету</text>`;
+    for (const v of opts.ticks || []) out += `<text x="${pad.l - 8}" y="${y(v) + 5}" text-anchor="end">${num(v, v < 1 ? 1 : 0)}</text>`;
+  }
+  if (opts.best != null) {
+    out += `<rect x="${x(opts.best)}" y="${pad.t}" width="${x(epochs) - x(opts.best)}" height="${h - pad.t - pad.b}" fill="rgba(229,96,59,.08)"/>`
+      + `<line x1="${x(opts.best)}" x2="${x(opts.best)}" y1="${pad.t}" y2="${h - pad.b}" stroke="#e5603b" stroke-width="2" stroke-dasharray="5 5"/>`;
+    if (opts.axes) out += `<text class="lbl" x="${x(opts.best) - 8}" y="${pad.t + 18}" text-anchor="end">★ лучшая по valid</text><text x="${x(opts.best) - 8}" y="${pad.t + 38}" text-anchor="end">дальше valid не падает,</text><text x="${x(opts.best) - 8}" y="${pad.t + 56}" text-anchor="end">а train падает — зубрёжка</text>`;
+  }
+  out += `<path d="${path("train")}" fill="none" stroke="#23264d" stroke-width="3.5" stroke-linejoin="round"/>`
+    + `<path d="${path("valid")}" fill="none" stroke="#e5603b" stroke-width="3.5" stroke-linejoin="round"/>`;
+  out += curve.map(c => `<circle cx="${x(c.epoch)}" cy="${y(c.valid)}" r="${opts.axes ? 4 : 2.5}" fill="#e5603b"/>`).join("");
+  return `<svg ${opts.axes ? 'class="chart"' : 'preserveAspectRatio="none"'} viewBox="0 0 ${w} ${h}">${out}</svg>`;
+}
+
+function renderTrain() {
+  const { state } = S, run = state.run;
+  const live = S.busy === "train" ? S.live || { total: 0, steps: [], curve: [], epochs: state.settings.epochs } : null;
+  const button = $("train-btn"), info = $("train-info");
+  $("params-btn").hidden = !run || !!live;
+  $("reset-btn").hidden = !trained() || !!live;
+  button.disabled = S.busy === "exam" || S.asking;
+  const legend = `<span class="key"><i></i>train</span><span class="key"><i class="v"></i>valid</span>`;
+  if (live) {
+    const step = live.steps.length ? live.steps.at(-1)[0] : 0;
+    const left = step > 1 ? (live.seconds - live.first) / (step - 1) * (live.total - step) : 0;
+    const epoch = live.ends ? live.ends.findIndex(end => step < end) + 1 || live.epochs : 1;
+    button.textContent = "■ Остановить";
+    button.className = "main press quiet";
+    const status = step > 1 ? `осталось ≈ ${minutes(left)}` : step ? "считаю скорость…" : "загружаю модель…";
+    info.innerHTML = `<div class="line"><b>Пират учится: эпоха ${epoch} из ${live.epochs} · шаг ${step} из ${live.total || "…"}</b><span class="soft">${status}</span></div>
+      <div class="meter"><i style="width: ${live.total ? step / live.total * 100 : 0}%"></i>${(live.ends || []).slice(0, -1).map(end => `<s style="left: ${end / live.total * 100}%"></s>`).join("")}</div>`;
+    $("spark").innerHTML = live.curve.length ? `${curveSVG(live.curve, live.epochs, 230, 58)}<div>${legend}<small>лосс — ошибка на ответе</small></div>` : "";
+    return;
+  }
+  const memory = state.free < 7 ? `<span class="warn">свободно ${num(state.free, 1)} ГБ — закройте лишние программы</span>` : "";
+  button.className = run ? "main press quiet" : "main press";
+  button.textContent = run ? "🎓 Дообучить заново" : "🎓 Дообучить пирата";
+  const size = `${state.train.length} примеров: ${state.train.filter(r => r.kind === "talk").length} болтовни и команд + ${state.train.filter(r => r.kind === "fact").length} вопросов о фактах`;
+  if (run) {
+    const p = run.passport;
+    info.innerHTML = `<div class="line"><b>Пират дообучен ✓</b><span>${epochsText(p.epochs)} × ${size} · ${minutes(p.seconds)} на процессоре</span>${memory}</div>
+      <div class="line soft" style="font-size: 16px; margin-top: 2px">лучшая эпоха по valid — ${run.best} ★, после неё модель начинает зубрить</div>`;
+    $("spark").innerHTML = `${curveSVG(run.curve, run.last, 230, 58, { best: run.best })}<div>${legend}<small>лосс по эпохам</small></div>`;
+  } else {
+    const steps = Math.ceil(state.train.length / state.settings.batch) * state.settings.epochs;   // ≈ 8,4 с на шаг вместе с замерами
+    info.innerHTML = `<div class="line"><b>Пират не дообучен</b><span>${epochsText(state.settings.epochs)} × ${size}</span><span class="soft">≈ ${Math.round(steps * 8.4 / 60)} мин</span>${memory}</div>`;
+    $("spark").innerHTML = "";
+  }
+}
+
+function renderControls() {
+  const blocked = !!S.busy || S.asking;
+  ["say", "go"].forEach(id => $(id).disabled = blocked);
+  document.querySelectorAll("#chips button").forEach(b => b.disabled = blocked);
+  document.querySelectorAll("#brains button").forEach(b => {
+    const needs = b.dataset.brain !== "prompt" && !trained();
+    b.setAttribute("aria-pressed", b.dataset.brain === S.brain);
+    b.disabled = blocked || needs;
+    b.title = needs ? "Сначала дообучите пирата — кнопка внизу" : "";
+    b.style.setProperty("--tone", BRAINS[b.dataset.brain].tone);
+  });
+  $("brain-chip").textContent = S.brain === "both" ? "мозги: промпт и тюн" : `мозг: ${BRAINS[S.brain].title.toLowerCase()}`;
+  $("brain-chip").style.setProperty("--tone", BRAINS[S.brain].tone);
+  $("brain-sub").textContent = BRAINS[S.brain].sub;
+  const run = S.state.run, ep = $("epochs");
+  if (trained() && S.brain !== "prompt") {
+    const current = S.epoch || run.best;
+    ep.innerHTML = `<span class="soft">тюн со снимка эпохи:</span>` + S.state.epochs.map(e =>
+      `<button type="button" data-epoch="${e}" class="${e === run.best ? "best" : ""} ${e === run.last && e !== run.best ? "over" : ""}" aria-pressed="${e === current}"
+        title="${e === run.best ? "лучшая по valid" : e === run.last ? "последняя — переобученная" : ""}" ${blocked ? "disabled" : ""}>${e}</button>`).join("")
+      + `<span class="soft" style="margin-left: 6px">${current === run.best ? "★ лучшая" : current === run.last ? "переобученная" : ""}</span>`;
+  } else ep.innerHTML = "";
+  $("train-btn").disabled = S.busy === "exam" || S.asking;
+  $("reset-btn").disabled = blocked;
+  $("exam-run").disabled = blocked;
+}
+
+function renderAll() {
+  renderTrain();
+  renderControls();
+  if (!$("view-limits").hidden) renderLimits();
+}
+
+/* ---------- экзамен и «Границы тюна» ---------- */
+function onExam(e) {
+  if (e.type === "start") S.exam = { rows: e.rows, modes: e.modes, answers: {}, live: true, progress: {} };
+  else if (e.type === "progress") S.exam.progress = e;
+  else if (e.type === "done") S.exam = e.report;
+  else if (e.type === "error") alert(e.message);
+  if (e.type !== "end" && !$("view-limits").hidden) renderLimits();
+}
+
+function key(mode) {         // тюн в отчёте — снимки эпох: tuned — лучшая по valid, overfit — последняя
+  const c = S.exam;
+  return mode === "tuned" ? `e${c.best}` : mode === "overfit" ? `e${c.last}` : mode;
+}
+
+function score(mode, kind) {
+  const s = S.exam && S.exam.summary && S.exam.summary[key(mode)];
+  return s && s[kind] != null ? s[kind] : null;
+}
+
+function renderLimits() {
+  const c = S.exam, live = S.busy === "exam";
+  $("exam-run").textContent = live ? "идёт экзамен…" : c && c.summary ? "▶ Провести заново" : "▶ Провести экзамен";
+  if (!c || !c.summary) {
+    const who = m => m.startsWith("e") ? `тюн, эпоха ${m.slice(1)}` : BRAINS[m].title.toLowerCase();
+    const p = live && c && c.progress && c.progress.mode ? `сейчас: ${who(c.progress.mode)} — ${c.progress.done} из ${c.progress.total}` : "";
+    const msg = live ? `Экзамен идёт: 100 реплик × мозги. ${p}` : trained() ? "Экзамена ещё не было — нажмите «Провести экзамен» (≈ 15 мин)" : "Сначала дообучите пирата — кнопка внизу, потом экзамен";
+    $("board").innerHTML = `<div class="empty-card">${msg}</div>`;
+    $("board-sub").textContent = "";
+    $("losses").innerHTML = $("verdict").innerHTML = "";
+    renderOver();
+    return;
+  }
+  const modes = ["base", "prompt", "rag", "tuned"];
+  $("board-sub").textContent = `по 20 реплик · тюн — эпоха ${c.best} ★ · промпт — ${tokens(c.speed.prompt.tokens)} перед каждой репликой, тюну он не нужен`;
+  const head = `<div></div>${modes.map(m => `<div class="th" style="--tone: ${BRAINS[m].tone}">${BRAINS[m].title}</div>`).join("")}<div class="th" style="--tone: transparent">кто лучше</div>`;
+  const rows = ["format", "style", "fact", "para"].map(kind => {
+    const cells = modes.map(m => {
+      const n = score(m, kind);
+      if (n == null) return `<div class="bar none">—</div>`;
+      return `<div class="bar" style="--tone: ${BRAINS[m].tone}"><i style="width: ${n / 20 * 100}%"></i><b>${n}</b></div>`;
+    }).join("");
+    const rival = Math.max(score("prompt", kind) ?? 0, score("rag", kind) ?? 0), tuned = score("tuned", kind);
+    // разница меньше 3 из 20 — шум: та же модель на другой пачке может ответить иначе
+    const who = tuned - rival >= 3 ? "tuned" : rival - tuned >= 3 ? (score("rag", kind) > score("prompt", kind) ? "rag" : "prompt") : null;
+    const win = who ? `<span class="win" style="--tone: ${BRAINS[who].tone}">${BRAINS[who].title}</span>` : `<span class="win" style="--tone: var(--read)">поровну</span>`;
+    return `<div class="kind" data-kind="${kind}">${KINDS[kind].icon} ${KINDS[kind].title}<small>${KINDS[kind].sub}</small></div>${cells}${win}`;
+  }).join("");
+  $("board").innerHTML = `<div class="board">${head}${rows}</div>`;
+  renderLosses();
+  renderVerdict();
+  renderOver();
+}
+
+function renderLosses() {
+  const c = S.exam, modes = ["base", "prompt", "tuned"].concat(c.last !== c.best ? ["overfit"] : []);
+  const title = m => m === "tuned" ? `тюн, эпоха ${c.best}` : m === "overfit" ? `эпоха ${c.last}` : BRAINS[m].title;
+  const big = modes.map((m, i) => `${i ? '<span class="arrow">→</span>' : ""}<span class="win" style="--tone: ${BRAINS[m].tone}; font-size: 15px">${title(m)}</span><span class="big">${score(m, "general")}</span>`).join("");
+  const list = c.worse[key("tuned")];
+  const worse = list.slice(0, 4).map(i => {
+    const row = c.rows[i], before = c.answers.base[i].answer, after = c.answers[key("tuned")][i].answer;
+    return `<span class="q">${esc(short(row.text, 40))}</span><span class="a">✓ ${esc(short(before, 40))}</span><span class="a no">✗ ${esc(short(lineOf(after), 50))}</span>`;
+  }).join("");
+  $("losses").innerHTML = `<div class="loss-line">${big}</div>`
+    + (list.length ? `<div class="broke"><span class="th">задача</span><span class="th">без промпта</span><span class="th">тюн · эпоха ${c.best}</span>${worse}</div>`
+      + `<button class="ghost press" data-kind="general" style="align-self: flex-start; margin-top: 8px; font-size: 16px">все ответы →</button>` : "");
+}
+
+function lineOf(answer) {
+  const v = parse(answer);
+  return v && typeof v["реплика"] === "string" ? v["реплика"] : answer;
+}
+
+function renderVerdict() {
+  const c = S.exam, run = S.state.run, sp = c.speed, tuned = sp[key("tuned")];
+  const moves = mode => {      // сколько разных действий пират делает в 40 ответах на формат и голос
+    const acts = new Set(c.rows.map((r, i) => r.kind === "format" || r.kind === "style" ? parse(c.answers[key(mode)][i].answer) : null)
+      .filter(v => v && ACTS[v["действие"]]).map(v => v["действие"]));
+    return acts.size;
+  };
+  const lines = [
+    ["🎯", `<b>Тюн</b> — для того, что нужно в каждом ответе: формат и голос ${score("tuned", "format")} и ${score("tuned", "style")} из 20 без промпта, ответ за ${num(tuned.seconds, 1)} с, а не ${num(sp.prompt.seconds, 1)} с. Пират живее: ${moves("tuned")} действий, у промпта — ${moves("prompt")}.`],
+    ["📜", `<b>Факты — промптом или RAG.</b> Тюн выучил вопросы (${score("tuned", "fact")} из 20), а не факты: другими словами — ${score("tuned", "para")}, у RAG — ${score("rag", "para")}. Факт в промпте меняют строкой, в тюне — новым обучением.`],
+    ["💸", `<b>Цена тюна</b>: ${minutes(run.passport.seconds)} обучения и датасет; обычные задачи ${score("base", "general")} → ${score("tuned", "general")}; после эпохи ${run.best} ★ — зубрёжка. Цена промпта — ${tokens(sp.prompt.tokens)} к каждой реплике.`],
+  ];
+  $("verdict").innerHTML = `<div class="verdict">${lines.map(([i, t]) => `<i>${i}</i><div>${t}</div>`).join("")}</div>`;
+}
+
+function renderOver() {
+  const run = S.state.run, live = S.busy === "train" && S.live;
+  const curve = live ? S.live.curve : run && run.curve;
+  if (!curve || !curve.length) { $("over").innerHTML = `<div class="empty-card">Появится после тюна</div>`; $("over-sub").textContent = ""; return; }
+  const epochs = live ? S.live.epochs : run.last, best = live ? null : run.best;
+  $("over-sub").textContent = `${epochsText(epochs)}; эпоха — проход по всему датасету`;
+  const ticks = [0.1, 0.5, 1, 2, 3].filter(v => v <= Math.max(...curve.map(c => Math.max(c.train, c.valid))));
+  const loss = curveSVG(curve, epochs, 420, 210, { axes: true, best, ticks, pad: { l: 36, r: 8, t: 10, b: 44 } });
+  const legend = `<div style="margin: 2px 0 0 36px; font-size: 15px"><span class="key"><i></i>train — на чём учится</span><span class="key"><i class="v"></i>valid — вне обучения</span></div>`;
+  const c = S.exam, byEpoch = c && c.summary && c.summary[`e${epochs}`] && !live;
+  const exam = byEpoch ? scoresSVG(epochs, best, 420, 210) : `<div class="empty-card" style="padding: 60px 20px">${live ? "" : "после экзамена"}</div>`;
+  const snaps = !live && run.snapshots ? run.snapshots : [];
+  const probe = snaps.length ? `<div class="probe"><b>«${esc(run.probes[0].text)}»</b> <span class="soft">— экзамен «другими словами», попугай Сухарик:</span>${snaps.map(s =>
+    `<div class="ep"><b>${s.epoch ? `эпоха ${s.epoch}` : "до тюна"}</b><span class="${s.answers[0].ok ? "" : "no"}">${s.answers[0].ok ? "✓" : "✗"} ${esc(short(lineOf(s.answers[0].answer), 100))}</span></div>`).join("")}</div>` : "";
+  $("over").innerHTML = `<div class="over-wrap"><div><h3 class="sub">Лосс</h3>${loss}${legend}</div><div><h3 class="sub">Экзамен по эпохам, из 20</h3>${exam}</div></div>${probe}`;
+}
+
+function scoresSVG(epochs, best, w, h) {     // баллы экзамена по эпохам; эпоха 0 — модель до тюна, без промпта
+  const pad = { l: 30, r: 150, t: 10, b: 44 };
+  const x = e => pad.l + (w - pad.l - pad.r) * e / epochs, y = n => pad.t + (h - pad.t - pad.b) * (1 - n / 20);
+  const lines = [["fact", "#23264d", "как учили"], ["para", "#e5603b", "другими словами"], ["general", "#2e7d4f", "обычные задачи"]];
+  let out = "";
+  for (let e = 0; e <= epochs; e++) out += `<line x1="${x(e)}" x2="${x(e)}" y1="${pad.t}" y2="${h - pad.b}" stroke="rgba(35,38,77,.1)"/><text x="${x(e)}" y="${h - pad.b + 18}" text-anchor="middle">${e}</text>`;
+  for (const n of [0, 10, 20]) out += `<text x="${pad.l - 8}" y="${y(n) + 5}" text-anchor="end">${n}</text>`;
+  out += `<text x="${pad.l + (w - pad.l - pad.r) / 2}" y="${h - pad.b + 36}" text-anchor="middle">эпоха · 0 — до тюна</text>`;
+  if (best != null) out += `<line x1="${x(best)}" x2="${x(best)}" y1="${pad.t}" y2="${h - pad.b}" stroke="#e5603b" stroke-width="2" stroke-dasharray="5 5"/>`;
+  const ends = [];
+  for (const [kind, color, label] of lines) {
+    const pts = [...Array(epochs + 1)].map((_, e) => [x(e), y(score(e ? `e${e}` : "base", kind))]);
+    out += `<path d="${pts.map(([a, b], i) => `${i ? "L" : "M"}${a.toFixed(1)} ${b.toFixed(1)}`).join("")}" fill="none" stroke="${color}" stroke-width="3.5" stroke-linejoin="round"/>`
+      + pts.map(([a, b]) => `<circle cx="${a}" cy="${b}" r="4" fill="${color}"/>`).join("");
+    ends.push({ y: pts.at(-1)[1], color, label, n: score(`e${epochs}`, kind) });
+  }
+  ends.sort((a, b) => a.y - b.y).forEach((t, i, all) => { if (i && t.y - all[i - 1].y < 18) t.y = all[i - 1].y + 18; });   // подписи не налезают
+  out += ends.map(t => `<text class="lbl" x="${w - pad.r + 10}" y="${t.y + 5}" style="fill: ${t.color}">${t.n} ${t.label}</text>`).join("");
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}">${out}</svg>`;
+}
+
+function openAnswers(kind) {
+  const c = S.exam;
+  if (!c || !c.summary) return;
+  const modes = ["base", "prompt", "rag", "tuned", "overfit"].filter(m => score(m, kind) != null && (m !== "overfit" || c.last !== c.best));
+  $("answers-title").textContent = `${KINDS[kind].icon} ${KINDS[kind].title} — ответы мозгов`;
+  $("answers-sub").textContent = `${KINDS[kind].sub}. Клик по строке — показать на пирате.`;
+  const title = m => m === "tuned" ? `Тюн, эпоха ${c.best} ★` : m === "overfit" ? `Тюн, эпоха ${c.last}` : BRAINS[m].title;
+  const head = `<tr><th>Реплика игрока</th>${modes.map(m => `<th class="m" style="--tone: ${BRAINS[m].tone}">${title(m)} · ${score(m, kind)}</th>`).join("")}</tr>`;
+  const body = c.rows.map((r, i) => r.kind !== kind ? "" : `<tr class="row" data-i="${i}"><td class="q">${esc(r.text)}</td>${modes.map(m => {
+    const a = c.answers[key(m)][i];
+    return `<td><div class="cell">${mark(a.ok)}<span>${a.format ? esc(lineOf(a.answer)) : `<span class="raw">${esc(short(a.answer, 140))}</span>`}</span></div></td>`;
+  }).join("")}</tr>`).join("");
+  $("answers-table").innerHTML = head + body;
+  $("answers").hidden = false;
+}
+
+/* ---------- окна ---------- */
+function showView(view) {
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-current", b.dataset.view === view));
+  $("view-app").hidden = view !== "app";
+  $("view-limits").hidden = view !== "limits";
+  $("train-panel").hidden = view === "limits";   // кривая обучения есть в «Переобучении», место — замерам
+  if (view === "limits") renderLimits();
+}
+
+function renderDossier() {
+  $("dossier-list").innerHTML = S.state.facts.map(f => {
+    const [what, value] = f.fact.split(" — ");
+    return `<div title="Учили: ${esc(f.train.join(" · "))}&#10;Экзамен другими словами: ${esc(f.para)}"><b>${esc(value ? what : f.key)}</b>${esc(value || f.fact)}</div>`;
+  }).join("");
+}
+
+function renderHow() {
+  const { model, run } = S.state, pct = model.trainable / model.total * 100;
+  $("how-cards").innerHTML = `
+    <div><h3>1 · Реплика → JSON</h3><pre>Как зовут твоего попугая?
+↓
+{"реплика": "Арр, юнга! Моего
+  попугая зовут Сухарик.",
+ "эмоция": "радость",
+ "действие": "гладит попугая"}</pre><div class="soft" style="margin-top: 8px">движок по JSON двигает пирата</div></div>
+    <div><h3>2 · Промпт</h3><div class="big">${S.exam && S.exam.speed ? tokens(S.exam.speed.prompt.tokens) : "≈ 640 токенов"}</div>
+      <div class="soft">перед каждой репликой: роль, формат, голос, всё досье и 2 примера</div></div>
+    <div><h3>3 · Тюн</h3><div class="big">${num(pct, 1)} %</div>
+      <div class="soft">весов учатся — вставки LoRA; ${S.state.train.length} примеров × ${epochsText(S.state.settings.epochs)}; промпт не нужен</div></div>
+    <div><h3>4 · Экзамен</h3><div class="big">100</div><div class="soft">реплик: формат, голос, обычные задачи, факты — как учили и другими словами; 80 из них модель не видела</div></div>`;
+}
+
+function renderParams() {
+  const p = S.state.run.passport;
+  const rows = [
+    ["Модель", p.model], ["Датасет", p.dataset], ["Примеров", `${p.train} на обучение · ${p.val} на проверку (valid)`],
+    ["Эпох · батч · шагов", `${p.epochs} · ${p.batch} · ${p.steps}`], ["Learning rate", `${p.lr} — разгон ${p.warmup} шагов, дальше постоянный`],
+    ["LoRA", `r ${p.lora.r} · alpha ${p.lora.alpha} · dropout ${p.lora.dropout} · ${p.lora.targets}`],
+    ["Числа", p.precision], ["Компьютер", `${p.machine.cpu} · ${p.threads} потоков · ${p.machine.ram} ГБ · без видеокарты`],
+    ["Время", minutes(p.seconds)], ["Снимки эпох", `${p.adapter}/<эпоха> · ${num(p.adapter_mb, 1)} МБ каждый`],
+    ["Версии", `torch ${p.versions.torch} · transformers ${p.versions.transformers} · peft ${p.versions.peft}`],
+  ];
+  $("passport").innerHTML = rows.map(([k, v]) => `<b>${k}</b><span>${esc(v)}</span>`).join("");
+}
+
+/* ---------- события страницы ---------- */
+$("command").addEventListener("submit", e => { e.preventDefault(); send($("say").value.trim()); });
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b || b.disabled) return;
+  $("say").value = b.textContent;
+  send(b.textContent);
+});
+$("brains").addEventListener("click", e => {
+  const b = e.target.closest("button[data-brain]");
+  if (!b || b.disabled || S.brain === b.dataset.brain) return;
+  S.brain = b.dataset.brain;
+  renderStage();
+  $("rows").innerHTML = "";
+  setStatus("", "ждёт реплику");
+  renderControls();
+  log("sys", "🔁", `Мозг: <b>${BRAINS[S.brain].title.toLowerCase()}</b>`);
+});
+$("epochs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-epoch]");
+  if (!b || b.disabled) return;
+  S.epoch = +b.dataset.epoch === S.state.run.best ? null : +b.dataset.epoch;
+  renderStage();
+  renderControls();
+  log("sys", "📸", `Тюн отвечает со снимка эпохи <b>${b.dataset.epoch}</b>${+b.dataset.epoch === S.state.run.last && S.state.run.last !== S.state.run.best ? " — переобученный" : ""}`);
+});
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button[data-view]"); if (b) showView(b.dataset.view); });
+$("train-btn").addEventListener("click", async () => {
+  if (S.busy === "train") { await fetch("/api/job", { method: "DELETE" }); return; }
+  if (S.state.free < 7 && !confirm(`Свободно ${num(S.state.free, 1)} ГБ, обучению нужно около 6. Начать?`)) return;
+  startJob("train");
+});
+$("reset-btn").addEventListener("click", async () => {
+  if (!confirm("Сбросить тюн? Останется только промпт; снимки эпох и экзамен уйдут в архив data/pirate/archive.")) return;
+  const response = await fetch("/api/reset", { method: "POST" });
+  const body = await response.json();
+  if (!response.ok) { alert(body.detail); return; }
+  await refresh();
+  renderStage();
+  log("sys", "↺", `Тюн сброшен: пират снова только с промптом. Прежние снимки — в ${esc(body.archive || "архиве")}.`);
+  renderAll();
+});
+$("exam-run").addEventListener("click", () => startJob("exam"));
+$("board").addEventListener("click", e => { const k = e.target.closest("[data-kind]"); if (k) openAnswers(k.dataset.kind); });
+$("losses").addEventListener("click", e => { const k = e.target.closest("[data-kind]"); if (k) openAnswers(k.dataset.kind); });
+$("answers").addEventListener("click", e => {
+  const tr = e.target.closest("tr.row");
+  if (!tr || S.asking) return;
+  const c = S.exam, i = +tr.dataset.i, row = c.rows[i];
+  const modes = (S.brain === "both" ? ["prompt", "tuned"] : [S.brain]).filter(m => c.answers[key(m)] && c.answers[key(m)][i]);
+  if (!modes.length) return;
+  $("answers").hidden = true;
+  showView("app");
+  if (S.epoch) { S.epoch = null; renderStage(); renderControls(); }
+  $("say").value = row.text;
+  log("you", "👤", esc(row.text), "из экзамена");
+  const results = modes.map(m => {
+    const a = c.answers[key(m)][i];
+    return { ...a, brain: m, mode: m, epoch: c.best, parsed: a.format ? parse(a.answer) : null };
+  });
+  results.forEach(show);
+  perform(results, row);
+});
+$("prompt-btn").addEventListener("click", () => {
+  $("prompt").hidden = false;
+  $("prompt-text").textContent = S.state.prompt;
+  $("prompt-sub").textContent = "Его добавляют перед каждой репликой игрока. Тюну он не нужен — роль, формат, голос и факты модель взяла из примеров.";
+});
+$("dossier-btn").addEventListener("click", () => { $("dossier").hidden = false; renderDossier(); });
+$("how-btn").addEventListener("click", () => { $("how").hidden = false; renderHow(); });
+$("params-btn").addEventListener("click", () => { $("params").hidden = false; renderParams(); });
+document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", e => {
+  if (e.target === o || e.target.closest("[data-close]")) o.hidden = true;
+}));
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".overlay").forEach(o => o.hidden = true); });
+
+load();
+</script>
+</body>
+</html>
