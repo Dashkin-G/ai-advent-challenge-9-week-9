@@ -5,6 +5,7 @@ __pycache__/
 .idea/
 workspace/
 data/
+tools/
 CLAUDE.local.md
 .playwright-mcp/
 /reports/

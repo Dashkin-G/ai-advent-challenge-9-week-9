@@ -1,5 +1,6 @@
-"""Мозги пирата — одна модель, разные условия: без промпта, с хорошим промптом, с одним нужным фактом (RAG),
-дообученная — со снимка любой эпохи. Экзамен: 100 строк × мозги, тюн — со снимка каждой эпохи (e1…e5).
+"""Мозги пирата в лаборатории (PyTorch) — одна модель, разные условия: без промпта, с хорошим промптом, с одним
+нужным фактом (RAG), дообученная — со снимка каждой эпохи (e1…e5). Экзамен: 100 строк × мозги.
+Реплики на палубе идут из прода — pirate/serve.py.
 
 Экзамен без страницы: python -m pirate.brain
 """
@@ -15,7 +16,7 @@ from peft import PeftModel
 from app import model
 from pirate import config, dataset, persona, rules, train
 
-MODES = ("base", "prompt", "rag")  # и тюн: tuned — лучшая эпоха по valid или выбранная, e1…e5 — снимки эпох
+MODES = ("base", "prompt", "rag")  # и тюн: e1…e5 — снимки эпох
 TOKENS = 80   # ответ пирата — 30–50 токенов; общей задаче хватит начала ответа
 BATCH = 10
 FACTS = {f["key"]: f for f in persona.FACTS}
@@ -66,24 +67,6 @@ def known(text):
         for question in f["train"] + [f["valid"]]:
             rows.setdefault(question, {"text": question, "kind": "fact", "fact": f["key"]})
     return rows.get(text)
-
-
-def ask(text, modes=("prompt", "tuned"), epoch=None):
-    """Реплика мозгам по очереди: ответ, разбор движком, проверки. tuned — со снимка epoch (None — лучшая эпоха)."""
-    row = known(text)
-    yield {"type": "start", "text": text, "row": row}
-    with _lock:
-        for mode in modes:
-            if mode == "tuned" and not epochs() or mode == "rag" and not (row and row.get("fact")):
-                continue
-            started = time.perf_counter()
-            [answer] = _answers(mode, [row or {"text": text}], epoch)
-            result = rules.check(row, answer) if row else {"format": rules.format_ok(answer),
-                                                           "style": rules.style(answer)}
-            yield {"type": "answer", "mode": mode, "epoch": _epoch(mode, epoch), "answer": answer,
-                   "parsed": rules.parse(answer) if result["format"] else None,
-                   "seconds": round(time.perf_counter() - started, 1), **result}
-    yield {"type": "done"}
 
 
 def run(stop):
@@ -141,13 +124,6 @@ def last():
     return json.loads(config.EXAM_FILE.read_text(encoding="utf-8"))
 
 
-def _epoch(mode, epoch):
-    """Номер эпохи, с которой отвечает мозг: tuned — выбранная или лучшая по valid, e3 — третья; без вставок — None."""
-    if mode == "tuned":
-        return epoch or train.last()["best"]
-    return int(mode[1:]) if mode.startswith("e") else None
-
-
 def _net():
     """Модель со снимком лучшей эпохи; остальные эпохи подгружаются по запросу. Новое обучение — перечитать."""
     run = train.last()
@@ -161,18 +137,17 @@ def _net():
     return _cache["net"]
 
 
-def _answers(mode, rows, epoch=None):
-    """Ответы пачкой: base, prompt и rag — без вставок, тюн — со вставками своей эпохи."""
+def _answers(mode, rows):
+    """Ответы пачкой: base, prompt и rag — без вставок, e1…e5 — со вставками своей эпохи."""
     net = _net()
     prompts = [train.prompt(r["text"], system(mode, r)) for r in rows]
     if mode in MODES:
         with model.plain(net):
             return model.generate(net, prompts, TOKENS)
-    name = f"e{_epoch(mode, epoch)}"
-    if name not in net.peft_config:
-        net.load_adapter(str(config.EPOCHS_DIR / name[1:]), adapter_name=name)
+    if mode not in net.peft_config:
+        net.load_adapter(str(config.EPOCHS_DIR / mode[1:]), adapter_name=mode)
         net.eval()
-    net.set_adapter(name)
+    net.set_adapter(mode)
     return model.generate(net, prompts, TOKENS)
 
 

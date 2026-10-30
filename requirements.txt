@@ -6,3 +6,4 @@ datasets
 fastapi
 uvicorn
 psutil
+gguf==0.19.0

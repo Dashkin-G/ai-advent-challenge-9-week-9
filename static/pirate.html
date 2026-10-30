@@ -138,11 +138,6 @@
   .seg button + button { border-left: var(--line); }
   .seg button[aria-pressed="true"] { background: var(--tone); }
   .brain-sub { margin-top: 8px; color: var(--soft); font-size: 17px; }
-  .epochs { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 16px; }
-  .epochs button { position: relative; width: 44px; height: 36px; border: var(--line); border-radius: 8px; background: var(--card); font: 700 17px var(--display); }
-  .epochs button[aria-pressed="true"] { background: var(--mustard); }
-  .epochs button.best::after { content: "★"; position: absolute; top: -12px; right: -6px; font-size: 14px; color: var(--accent); }
-  .epochs button.over { border-style: dashed; }
   .log { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 12px; }
   .log-list { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; scrollbar-width: thin; }
   .msg { display: grid; grid-template-columns: 30px 1fr; gap: 2px 8px; align-items: start; margin-bottom: 8px; font-size: 16px; }
@@ -219,6 +214,62 @@
   .verdict b { font-family: var(--display); }
   .empty-card { padding: 40px; color: var(--soft); font-size: 20px; text-align: center; }
 
+  /* Вкладка «Прод» */
+  .prod { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 16px 22px; }
+  .prod .card { padding: 12px 20px 14px; min-height: 0; }
+  .prod .head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .prod .head .soft { font-size: 16px; }
+  .pick { display: flex; align-items: center; gap: 6px; font-size: 16px; }
+  .pick button { position: relative; min-width: 40px; height: 34px; padding: 0 10px; border: var(--line); border-radius: 8px; background: var(--card); font: 700 16px var(--display); }
+  .pick button[aria-pressed="true"] { background: var(--mustard); }
+  .pick button.best::after { content: "★"; position: absolute; top: -12px; right: -6px; font-size: 14px; color: var(--accent); }
+  .pipe { display: flex; align-items: stretch; margin-top: 10px; }
+  .pipe .st { flex: 1; min-width: 0; padding: 6px 12px 8px; border: var(--line); border-radius: 12px; background: var(--card); }
+  .pipe .st.done { background: #fbf3d5; }
+  .pipe .st.run { border-style: dashed; background: var(--paper); }
+  .pipe .st.wait { border-color: var(--faint); color: var(--soft); }
+  .pipe .st.bad { border-color: var(--err); background: var(--err-bg); color: var(--err); }
+  .pipe .st b { display: block; font: 700 16px var(--display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pipe .st .big { display: block; font: 700 26px/1.15 var(--display); white-space: nowrap; }
+  .pipe .st small { display: block; color: var(--soft); font-size: 14px; line-height: 1.25; }
+  .pipe .st.bad small { color: var(--err); }
+  .pipe > i { align-self: center; padding: 0 5px; color: var(--soft); font: 700 20px var(--display); font-style: normal; }
+  .vers { margin-top: 6px; }
+  .ver { display: grid; grid-template-columns: 58px minmax(0, 1fr) 64px minmax(0, 1.1fr) 150px; gap: 12px; align-items: center; padding: 7px 0; border-top: 2px solid var(--faint); }
+  .ver:first-child { border-top: none; }
+  .ver .name { font: 700 24px var(--display); }
+  .ver .what { font-size: 16px; }
+  .ver .what small { display: block; color: var(--soft); font-size: 14px; }
+  .ver .total { font: 700 26px var(--display); text-align: right; }
+  .ver .total small { display: block; color: var(--soft); font: 13px "Segoe UI", sans-serif; }
+  .ver .gate { font-size: 15px; }
+  .ver .gate.no { color: var(--err); }
+  .ver .act { justify-self: end; }
+  .ver .act .ghost { padding: 4px 12px; font-size: 16px; }
+  .live-badge { padding: 3px 10px; border: var(--line); border-radius: 8px; background: var(--mustard); font: 700 16px var(--display); white-space: nowrap; }
+  .ver.base { color: var(--soft); }
+  .rules { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px 10px; margin-top: 8px; font-size: 16px; }
+  .rules i { font-style: normal; font-size: 22px; line-height: 1.1; }
+  .rules code { font: 14px var(--mono); }
+  .was { display: grid; grid-template-columns: 110px minmax(0, 1fr) 24px minmax(0, 1fr) max-content; gap: 4px 12px; align-items: baseline; margin-top: 8px; }
+  .was .th { font: 700 14px var(--display); letter-spacing: .05em; text-transform: uppercase; color: var(--soft); border-bottom: 4px solid var(--tone); padding-bottom: 2px; }
+  .was .k { font: 700 18px var(--display); }
+  .was .v { font: 700 28px var(--display); white-space: nowrap; }
+  .was .v.old { color: var(--soft); font-size: 24px; }
+  .was > i { color: var(--soft); font: 700 22px var(--display); font-style: normal; }
+  .was .x { justify-self: start; padding: 1px 8px; border-radius: 6px; background: var(--mustard); font: 700 15px var(--display); white-space: nowrap; }
+  .was .x.same { background: var(--read); color: var(--soft); }
+  .quant { display: grid; grid-template-columns: 96px minmax(0, 1fr) 70px 70px 94px; gap: 6px 12px; align-items: center; margin-top: 8px; font-size: 16px; }
+  .quant .th { font: 700 13px var(--display); letter-spacing: .05em; text-transform: uppercase; color: var(--soft); }
+  .quant .bits { font: 700 18px var(--display); }
+  .quant .n { font: 700 20px var(--display); text-align: right; }
+  .quant .bar { height: 28px; }
+  .quant .bar b { font-size: 16px; }
+  .quant .row-live { outline: 3px solid var(--mustard); outline-offset: 2px; border-radius: 6px; }
+  .block { display: flex; align-items: center; gap: 18px; margin-top: 14px; }
+  .block svg { flex: none; width: 600px; height: auto; }
+  .block .soft { font-size: 15px; }
+
   /* Окна */
   .overlay { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 30px; background: rgba(35, 38, 77, .45); }
   .dialog { width: min(1500px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 14px; padding: 20px 26px; border: var(--line); border-radius: 18px; background: var(--card); box-shadow: 6px 6px 0 var(--ink); overflow: hidden; }
@@ -240,7 +291,7 @@
   .dossier { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   .dossier div { padding: 6px 10px; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); font-size: 16px; }
   .dossier b { display: block; font: 700 13px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--soft); }
-  .how { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .how { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
   .how > div { padding: 16px 18px; border: var(--line); border-radius: 14px; background: var(--paper); }
   .how h3 { margin: 0 0 12px; font: 700 21px var(--display); }
   .how .big { font: 700 40px/1 var(--display); }
@@ -262,7 +313,7 @@
     <path d="M12 34 q14 14 28 0" fill="#d9822b" stroke="#23264d" stroke-width="2.5"/>
   </svg>
   <h1>Капитан Килька</h1>
-  <nav class="tabs" id="tabs"><button type="button" data-view="app" aria-current="true">Пират</button><button type="button" data-view="limits">Границы тюна</button></nav>
+  <nav class="tabs" id="tabs"><button type="button" data-view="app" aria-current="true">Пират</button><button type="button" data-view="prod">Прод</button><button type="button" data-view="limits">Границы тюна</button></nav>
   <span class="chip" id="model-chip"></span>
   <span class="grow"></span>
   <button class="ghost press" id="dossier-btn">📜 Досье · 20 фактов</button>
@@ -285,14 +336,14 @@
 
   <aside class="side">
     <section class="card brain">
-      <h2>Мозг пирата</h2>
+      <h2>Мозг пирата в проде</h2>
       <div class="seg" id="brains">
-        <button type="button" data-brain="prompt">Промпт</button>
         <button type="button" data-brain="tuned">Тюн</button>
-        <button type="button" data-brain="both">Промпт и тюн</button>
+        <button type="button" data-brain="prompt">База + промпт</button>
+        <button type="button" data-brain="both">Сравнить</button>
       </div>
       <div class="brain-sub" id="brain-sub"></div>
-      <div class="epochs" id="epochs"></div>
+      <div class="brain-sub" id="uptime" style="font-size: 15px"></div>
     </section>
     <section class="card log">
       <h2>Лента</h2>
@@ -306,6 +357,30 @@
   <button class="main press" id="go">▶ Сказать</button>
 </form>
 <div class="chips" id="chips"></div>
+</div>
+
+<div class="view" id="view-prod" hidden>
+  <div class="prod">
+    <section class="card" style="grid-column: 1 / -1">
+      <div class="head"><h2>Сборка версии</h2><span class="soft" id="pipe-sub"></span><span class="grow"></span>
+        <div class="pick" id="build-epoch"></div><div class="pick" id="build-quant"></div>
+        <button class="main press" id="build-btn" style="padding: 6px 20px; font-size: 19px">▶ Собрать</button></div>
+      <div id="pipe"></div>
+    </section>
+    <section class="card" style="display: flex; flex-direction: column; overflow: auto; scrollbar-width: thin">
+      <div class="head"><h2>Версии</h2><span class="soft">ворота — экзамен 100 реплик против той, что в проде</span></div>
+      <div class="vers" id="versions"></div>
+      <div class="head" style="margin-top: 12px"><h2>Как выкатывать</h2></div>
+      <div class="rules" id="rules"></div>
+    </section>
+    <section class="card" style="overflow: auto; scrollbar-width: thin">
+      <div class="head"><h2>Было → стало</h2><span class="soft" id="was-sub"></span></div>
+      <div id="was"></div>
+      <div class="head" style="margin-top: 14px"><h2>Квантование</h2><span class="soft">блок из 32 весов → общий множитель + 32 целых по 8 или 4 бита</span></div>
+      <div id="quant"></div>
+      <div class="block" id="block"></div>
+    </section>
+  </div>
 </div>
 
 <div class="view" id="view-limits" hidden>
@@ -365,6 +440,12 @@
       <b>RAG</b><span>поиск нужного факта в промпт</span>
       <b>Эпоха</b><span>один проход по всему датасету</span>
       <b>Лосс</b><span>ошибка модели на ответе</span>
+      <b>Слияние</b><span>вставки вливаются в сами веса</span>
+      <b>GGUF</b><span>один файл модели для Ollama</span>
+      <b>Квантование</b><span>меньше бит на каждый вес</span>
+      <b>Ollama</b><span>сервер, который запускает модели</span>
+      <b>Ворота</b><span>экзамен перед выкаткой версии</span>
+      <b>Откат</b><span>вернуть прежнюю версию в прод</span>
     </div>
   </div>
 </div>
@@ -387,12 +468,17 @@
 <script>
 const BRAINS = {
   base: { title: "Без промпта", short: "без промпта", tone: "var(--read)" },
-  prompt: { title: "Промпт", short: "промпт", tone: "var(--beige)", sub: "модель + промпт: роль, формат, голос и всё досье — перед каждой репликой" },
-  rag: { title: "RAG", short: "RAG", tone: "var(--green)", sub: "тот же промпт, но в досье — один нужный факт" },
-  tuned: { title: "Тюн", short: "тюн", tone: "var(--mustard)", sub: "та же модель + вставки LoRA, промпта нет" },
+  prompt: { title: "База + промпт", short: "база + промпт", tone: "var(--beige)" },
+  rag: { title: "RAG", short: "RAG", tone: "var(--green)" },
+  tuned: { title: "Тюн", short: "тюн", tone: "var(--mustard)" },
   overfit: { title: "Переобученный", short: "переобуч.", tone: "var(--rose)" },
-  both: { title: "Промпт и тюн", tone: "linear-gradient(90deg, var(--beige) 50%, var(--mustard) 50%)", sub: "одна реплика обоим: слева промпт, справа тюн" },
+  both: { title: "Сравнить", tone: "linear-gradient(90deg, var(--beige) 50%, var(--mustard) 50%)" },
 };
+const BITS = { bf16: 16, q8_0: 8, q4_0: 4 };
+const STEPS = [      // сборка версии: шаг конвейера → значок и название
+  ["adapter", "🧩", "Вставки LoRA"], ["merge", "🔗", "Слияние"], ["gguf", "📦", "GGUF"], ["quant", "🗜", "Квантование"],
+  ["ollama", "🐳", "Ollama"], ["exam", "🎓", "Экзамен"], ["gate", "🚦", "Ворота"],
+];
 const KINDS = {
   format: { title: "Формат", sub: "движок понял JSON", icon: "🗺" },
   style: { title: "Голос", sub: "«юнга», «арр», коротко, не ИИ", icon: "🦜" },
@@ -409,7 +495,8 @@ const EXAMPLES = [
   ["факты", ["Как зовут твоего попугая?", "Как зовут твоего пернатого друга?"]],
   ["чужое", ["Сколько будет 17 + 25? Ответь числом.", "Переведи на английский слово «кошка»."]],
 ];
-const S = { state: null, brain: "prompt", epoch: null, busy: null, asking: false, live: null, exam: null, shown: null };
+const S = { state: null, brain: "prompt", busy: null, asking: false, live: null, exam: null, shown: null, build: null,
+  pick: { epoch: null, quant: null }, loadedAt: 0 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const num = (x, d = 0) => x.toLocaleString("ru-RU", { maximumFractionDigits: d, minimumFractionDigits: d });
@@ -420,6 +507,11 @@ const trained = () => S.state.epochs.length > 0;
 const plural = (n, [one, few, many]) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many}`;
 const tokens = n => plural(n, ["токен", "токена", "токенов"]);
 const epochsText = n => plural(n, ["эпоха", "эпохи", "эпох"]);
+const gb = bytes => num(bytes / 1e9, bytes < 1e9 ? 2 : 1);
+const sec = s => `${num(s, s < 10 ? 1 : 0)} с`;
+const since = s => s < 60 ? `${Math.round(s)} с` : s < 3600 ? `${Math.floor(s / 60)} мин` : `${Math.floor(s / 3600)} ч ${Math.floor(s % 3600 / 60)} мин`;
+const tuneName = r => `тюн ${r.version}`;
+const loadText = s => s >= 0.1 ? `модель загрузилась в память за ${sec(s)}` : "модель уже была в памяти";
 
 /* ---------- пират ---------- */
 function pirateSVG() {
@@ -525,7 +617,7 @@ function renderStage(results) {
   const small = brains.length > 1;
   $("stage").innerHTML = brains.map(b => `<div class="unit ${small ? "small" : ""}" data-brain="${b}">
       ${small ? `<span class="tag" style="--tone: ${BRAINS[b].tone}">${tagText(b)}</span>` : ""}
-      <div class="bubble empty">${S.state && !trained() && b === "tuned" ? "сначала дообучите меня — кнопка внизу" : "скажите мне что-нибудь, юнга"}</div>
+      <div class="bubble empty">${S.state && !S.state.prod.live && b === "tuned" ? "тюна в проде нет — выкатите версию на вкладке «Прод»" : "скажите мне что-нибудь, юнга"}</div>
       ${pirateSVG()}
       <div class="engine"></div>
     </div>`).join("");
@@ -534,8 +626,7 @@ function renderStage(results) {
 }
 
 function tagText(brain) {
-  if (brain !== "tuned") return BRAINS[brain].title;
-  return S.state && trained() ? `тюн · эпоха ${S.epoch || S.state.run.best}` : "тюн";
+  return brain === "tuned" && S.state && S.state.prod.live ? `тюн ${S.state.prod.live}` : BRAINS[brain].title;
 }
 
 function think(on) {
@@ -570,21 +661,26 @@ function show(r) {          // ответ мозга → облачко, лиц�
 
 /* ---------- загрузка и поток событий ---------- */
 async function load() {
-  await refresh(true);
-  $("model-chip").textContent = `мозг — ${S.state.model.name.split("/")[1]} на процессоре ноутбука`;
+  await refresh();
   $("chips").innerHTML = EXAMPLES.map(([group, list], i) => `${i ? "<i></i>" : ""}<span>${group}:</span>` +
     list.map(t => `<button type="button">${esc(t)}</button>`).join("")).join("");
   log("sys", "🏴‍☠️", "Скажите пирату что-нибудь. Модель отвечает движку игры JSON-ом: <b>реплика · эмоция · действие</b> — по нему пират говорит и двигается.");
+  if (S.state.prod.loaded === null) log("bad", "⚠️", "Ollama не отвечает — запустите приложение Ollama: пират живёт в ней");
   renderStage();
   renderAll();
+  setInterval(() => { $("uptime").textContent = uptimeText(); }, 15000);
   if (S.state.job.running) { S.busy = S.state.job.kind.replace("pirate-", ""); follow(); }
 }
 
-async function refresh(initial = false) {
+async function refresh() {
   S.state = await (await fetch("/api/state")).json();
+  S.loadedAt = Date.now();
   S.exam = S.state.exam;
-  if (initial || (!trained() && S.brain !== "prompt")) S.brain = trained() ? "both" : "prompt";
-  if (!trained() || !S.state.epochs.includes(S.epoch)) S.epoch = null;
+  const prod = S.state.prod;
+  if (S.brain !== "both" || !prod.live) S.brain = prod.mode === "tuned" && prod.live ? "tuned" : "prompt";
+  const epochs = S.state.epochs;
+  if (!epochs.includes(S.pick.epoch)) S.pick.epoch = S.state.run && epochs.includes(S.state.run.last) ? S.state.run.last : epochs.at(-1) ?? null;
+  S.pick.quant ??= prod.quant;
 }
 
 async function lines(response, onEvent) {
@@ -605,26 +701,32 @@ async function lines(response, onEvent) {
 
 async function follow() {
   renderAll();
-  await lines(await fetch("/api/events?since=0"), e => (S.busy === "exam" ? onExam : onTrain)(e));
-  const kind = S.busy;
+  await lines(await fetch("/api/events?since=0"), { exam: onExam, build: onBuild }[S.busy] || onTrain);
+  if (S.build && !S.build.error) S.build = null;   // собранная версия — уже в списке, с воротами против нынешнего прода
   S.busy = null;
   S.live = null;
   await refresh();
-  if (kind === "train" && trained()) { S.brain = "both"; renderStage(); }
   renderAll();
 }
 
-async function startJob(kind) {
-  const response = await fetch(`/api/${kind}`, { method: "POST" });
+async function startJob(kind, url = `/api/${kind}`, body = null) {
+  const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
   if (!response.ok) { alert((await response.json()).detail); return; }
   S.busy = kind;
   follow();
 }
 
+async function post(url, body) {   // переключение, выкатка, откат: ответ — новое состояние прода
+  const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail);
+  return data;
+}
+
 /* ---------- реплика пирату ---------- */
 async function send(text) {
-  const modes = S.brain === "both" ? ["prompt", "tuned"] : [S.brain];
-  if (!text || S.busy || S.asking) return;
+  const modes = S.brain === "both" ? ["prompt", "tuned"] : ["live"];   // live — кто сейчас в проде, решает сервис
+  if (!text || blocked()) return;
   S.asking = true;
   renderControls();
   log("you", "👤", esc(text));
@@ -633,13 +735,19 @@ async function send(text) {
   $("rows").innerHTML = "";
   try {
     const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, modes, epoch: S.epoch }) });
+      body: JSON.stringify({ text, modes }) });
     if (!response.ok) throw new Error((await response.json()).detail);
     const results = [];
     let row = null;
     await lines(response, e => {
+      if (e.type === "error") throw new Error(e.message);
       if (e.type === "start") row = e.row;
-      if (e.type === "answer") { const r = { ...e, brain: e.mode }; results.push(r); think(false); show(r); }
+      if (e.type !== "answer") return;
+      if (S.brain !== "both" && e.mode !== S.brain) { S.brain = e.mode; renderStage(); renderControls(); }   // прод переключили в другой вкладке
+      const r = { ...e, brain: e.mode };
+      results.push(r);
+      think(false);
+      show(r);
     });
     perform(results, row);
   } catch (err) {
@@ -657,8 +765,8 @@ function perform(results, row) {
   S.shown = { results, row };
   renderRows(results, row);
   for (const r of results) {
-    const who = r.brain === "tuned" ? `тюн · эпоха ${r.epoch}` : BRAINS[r.brain].title.toLowerCase();
-    log("raw", "🧠", esc(short(r.answer, 170)), `мозг (${who}) → движок`);
+    const who = r.brain === "tuned" ? tuneName(r) : BRAINS[r.brain].short;
+    log("raw", "🧠", esc(short(r.answer, 170)), `мозг (${who}${r.seconds != null ? ` · ${sec(r.seconds)}` : ""}) → движок`);
   }
   const verdict = r => r.ok != null ? r.ok : r.format;
   const label = results.length > 1 ? results.map(r => `${BRAINS[r.brain].short} ${verdict(r) ? "✓" : "✗"}`).join(" · ") : null;
@@ -677,8 +785,8 @@ function checks(r, row) {    // что проверили в ответе: дв�
 }
 
 function renderRows(results, row) {
-  $("rows").innerHTML = results.map(r => `<div class="res"><b style="--tone: ${BRAINS[r.brain].tone}">${esc(r.brain === "tuned" ? `тюн · эп. ${r.epoch}` : BRAINS[r.brain].short)}</b>
-    ${checks(r, row)}<code>${esc(short(r.answer, 150))}</code></div>`).join("");
+  $("rows").innerHTML = results.map(r => `<div class="res"><b style="--tone: ${BRAINS[r.brain].tone}">${esc(r.brain === "tuned" ? tuneName(r) : BRAINS[r.brain].short)}</b>
+    ${checks(r, row)}${r.seconds != null ? `<span class="ck idle" title="ответ модели в Ollama${r.load > 0.5 ? `; ещё ${sec(r.load)} — загрузка в память` : ""}">${sec(r.seconds)}</span>` : ""}<code>${esc(short(r.answer, 150))}</code></div>`).join("");
 }
 
 function setStatus(tone, text) {
@@ -711,14 +819,8 @@ function onTrain(e) {
   } else if (e.type === "epoch") {
     const lines = S.live.probes.map((p, i) => `${mark(e.answers[i].ok)} ${esc(short(p.text, 34))} → <span class="soft">${esc(short(e.answers[i].answer, 60))}</span>`);
     log("sys", "📸", lines.join("<br>"), e.epoch ? `эпоха ${e.epoch} · лосс на valid ${num(S.live.curve.at(-1).valid, 2)}` : "до тюна");
-    if (S.brain !== "prompt") {
-      const [p] = S.live.probes, a = e.answers[0];
-      renderStage();
-      show({ brain: S.brain === "both" ? "tuned" : S.brain, answer: a.answer, parsed: a.format ? parse(a.answer) : null });
-      setStatus(a.ok ? "ok" : "bad", `эпоха ${e.epoch}: «${short(p.text, 30)}» ${a.ok ? "✓" : "✗"}`);
-    }
   } else if (e.type === "done") {
-    log("sys", "🎓", `Пират дообучен за ${minutes(e.passport.seconds)}. Лучшая эпоха по valid — ${e.best}.`);
+    log("sys", "🎓", `Пират дообучен за ${minutes(e.passport.seconds)}. Лучшая эпоха по valid — ${e.best}. В прод — через сборку версии на вкладке «Прод».`);
   } else if (e.type === "stopped") {
     log("sys", "🎓", "Обучение остановлено — прежние снимки на месте.");
   } else if (e.type === "error") {
@@ -791,37 +893,53 @@ function renderTrain() {
   }
 }
 
+function blocked() {         // пока идёт сборка версии, прод отвечает: блокируют только обучение и экзамен в PyTorch
+  return (!!S.busy && S.busy !== "build") || S.asking || S.switching;
+}
+
 function renderControls() {
-  const blocked = !!S.busy || S.asking;
-  ["say", "go"].forEach(id => $(id).disabled = blocked);
-  document.querySelectorAll("#chips button").forEach(b => b.disabled = blocked);
+  const prod = S.state.prod, off = blocked();
+  ["say", "go"].forEach(id => $(id).disabled = off);
+  document.querySelectorAll("#chips button").forEach(b => b.disabled = off);
   document.querySelectorAll("#brains button").forEach(b => {
-    const needs = b.dataset.brain !== "prompt" && !trained();
+    const needs = b.dataset.brain !== "prompt" && !prod.live;
     b.setAttribute("aria-pressed", b.dataset.brain === S.brain);
-    b.disabled = blocked || needs;
-    b.title = needs ? "Сначала дообучите пирата — кнопка внизу" : "";
+    b.disabled = off || needs;
+    b.title = needs ? "Тюна в проде нет — соберите и выкатите версию на вкладке «Прод»" : "";
     b.style.setProperty("--tone", BRAINS[b.dataset.brain].tone);
   });
-  $("brain-chip").textContent = S.brain === "both" ? "мозги: промпт и тюн" : `мозг: ${BRAINS[S.brain].title.toLowerCase()}`;
+  const now = prod.mode === "tuned" && prod.live ? `тюн ${prod.live}` : "база + промпт";
+  $("brain-chip").textContent = S.brain === "both" ? "сравнение: база + промпт и тюн" : `в проде: ${now}`;
   $("brain-chip").style.setProperty("--tone", BRAINS[S.brain].tone);
-  $("brain-sub").textContent = BRAINS[S.brain].sub;
-  const run = S.state.run, ep = $("epochs");
-  if (trained() && S.brain !== "prompt") {
-    const current = S.epoch || run.best;
-    ep.innerHTML = `<span class="soft">тюн со снимка эпохи:</span>` + S.state.epochs.map(e =>
-      `<button type="button" data-epoch="${e}" class="${e === run.best ? "best" : ""} ${e === run.last && e !== run.best ? "over" : ""}" aria-pressed="${e === current}"
-        title="${e === run.best ? "лучшая по valid" : e === run.last ? "последняя — переобученная" : ""}" ${blocked ? "disabled" : ""}>${e}</button>`).join("")
-      + `<span class="soft" style="margin-left: 6px">${current === run.best ? "★ лучшая" : current === run.last ? "переобученная" : ""}</span>`;
-  } else ep.innerHTML = "";
-  $("train-btn").disabled = S.busy === "exam" || S.asking;
-  $("reset-btn").disabled = blocked;
-  $("exam-run").disabled = blocked;
+  $("brain-sub").innerHTML = brainSub();
+  $("uptime").textContent = uptimeText();
+  const live = prod.live && prod.versions.find(v => v.version === prod.live);
+  $("model-chip").textContent = `прод — Ollama на процессоре · ${prod.mode === "tuned" && live ? `${live.tag}, ${BITS[live.quant]} бит` : `${prod.base ? prod.base.tag : "база"} + промпт`}`;
+  $("train-btn").disabled = S.busy === "exam" || S.busy === "build" || S.asking;
+  $("reset-btn").disabled = off;
+  $("exam-run").disabled = off;
+  $("build-btn").disabled = !!S.busy || !S.pick.epoch;
+}
+
+function brainSub() {        // что сейчас отвечает: модель в Ollama, откуда она и чего ей стоит реплика
+  const prod = S.state.prod, live = prod.versions.find(v => v.version === prod.live);
+  const tune = live ? `<b>${live.tag}</b> — эпоха ${live.epoch}, вставки влиты в веса, ${BITS[live.quant]} бит, ${gb(live.size)} ГБ, без промпта` : "тюна в проде нет";
+  const base = `<b>${prod.base ? prod.base.tag : "база"}</b> — модель без тюна + промпт ${S.exam && S.exam.speed ? tokens(S.exam.speed.prompt.tokens) : "≈ 640 токенов"} перед каждой репликой`;
+  if (S.brain === "both") return `одна реплика обоим: слева база + промпт, справа тюн ${prod.live}; в проде остаётся ${prod.mode === "tuned" ? `тюн ${prod.live}` : "база"}`;
+  return S.brain === "tuned" ? tune : base;
+}
+
+function uptimeText() {
+  const prod = S.state.prod, up = prod.uptime + (Date.now() - S.loadedAt) / 1000;
+  const last = prod.changed ? ` · последнее: ${prod.changed.what}, ${since((Date.now() - new Date(prod.changed.at)) / 1000)} назад` : "";
+  return `сервис работает ${since(up)} без перезапуска${last}`;
 }
 
 function renderAll() {
   renderTrain();
   renderControls();
   if (!$("view-limits").hidden) renderLimits();
+  if (!$("view-prod").hidden) renderProd();
 }
 
 /* ---------- экзамен и «Границы тюна» ---------- */
@@ -965,13 +1083,144 @@ function openAnswers(kind) {
   $("answers").hidden = false;
 }
 
+/* ---------- прод: сборка, версии, выкатка и откат, замеры ---------- */
+function onBuild(e) {
+  if (e.type === "start") S.build = { ...e, steps: {}, progress: null };
+  else if (!S.build) return;
+  else if (e.type === "step") S.build.steps[e.step] = e;
+  else if (e.type === "progress") S.build.progress = e;
+  else if (e.type === "done") {
+    Object.assign(S.build, { card: e.card, gate: e.gate });
+    log("sys", "📦", `Собрана <b>${e.card.version}</b> из эпохи ${e.card.epoch}: экзамен ${e.card.exam.total} из 100 — ворота ${e.gate.ok ? "✓ пускают" : `✗ ${esc(e.gate.why.join("; "))}`}`);
+  } else if (e.type === "stopped") { log("sys", "📦", "Сборка остановлена — прод не тронут."); S.build = null; }
+  else if (e.type === "error") { S.build.error = e.message; log("bad", "⚠️", esc(e.message)); }
+  if (e.type !== "end" && !$("view-prod").hidden) renderPipe();
+}
+
+function renderProd() {
+  const { state } = S, run = state.run;
+  $("build-epoch").innerHTML = `<span class="soft">эпоха</span>` + state.epochs.map(e =>
+    `<button type="button" data-epoch="${e}" class="${run && e === run.best ? "best" : ""}" aria-pressed="${e === S.pick.epoch}" title="${run && e === run.best ? "лучшая по valid" : ""}">${e}</button>`).join("");
+  $("build-quant").innerHTML = `<span class="soft" style="margin-left: 8px">бит</span>` + Object.entries(BITS).map(([q, b]) =>
+    `<button type="button" data-quant="${q}" aria-pressed="${q === S.pick.quant}">${b}</button>`).join("");
+  $("build-btn").textContent = S.busy === "build" ? "■ Остановить" : "▶ Собрать";
+  $("build-btn").disabled = (!!S.busy && S.busy !== "build") || !S.pick.epoch;
+  renderPipe();
+  renderVersions();
+  renderRules();
+  renderWas();
+  $("block").innerHTML = blockSVG(state.prod.sample)
+    + `<div class="soft">Один настоящий блок — 32 веса из первого слоя. Пунктир — исходный вес: 8 бит его почти повторяют, у 4 бит всего 16 ступенек.</div>`;
+}
+
+function blockSVG(w) {       // как блок из 32 весов хранят 16, 8 и 4 бита: множитель блока + целые числа
+  const amax = Math.max(...w.map(Math.abs)), d8 = amax / 127;
+  const peak = w.reduce((m, x) => Math.abs(x) > Math.abs(m) ? x : m, 0), d4 = peak / -8;   // как в llama.cpp: q4_0
+  const rows = [["16 бит", w], ["8 бит", w.map(x => Math.round(x / d8) * d8)], ["4 бита", w.map(x => (Math.min(15, Math.floor(x / d4 + 8.5)) - 8) * d4)]];
+  const W = 600, H = 64, gap = 10, step = (W - 70) / 32, y = (v, y0) => y0 - v / amax * H / 2;
+  let out = "";
+  rows.forEach(([label, values], r) => {
+    const y0 = r * (H + gap) + H / 2 + 4;
+    out += `<text class="lbl" x="0" y="${y0 + 5}">${label}</text><line x1="66" x2="${W}" y1="${y0}" y2="${y0}" stroke="rgba(35,38,77,.25)"/>`;
+    values.forEach((v, i) => {
+      const x = 70 + i * step, ghost = y(w[i], y0), top = y(v, y0);
+      out += `<rect x="${x.toFixed(1)}" y="${Math.min(y0, top).toFixed(1)}" width="${(step - 3).toFixed(1)}" height="${Math.abs(y0 - top).toFixed(1)}" fill="${["#50557a", "#f2d37a", "#e5603b"][r]}"/>`;
+      if (r) out += `<rect x="${x.toFixed(1)}" y="${Math.min(y0, ghost).toFixed(1)}" width="${(step - 3).toFixed(1)}" height="${Math.abs(y0 - ghost).toFixed(1)}" fill="none" stroke="#23264d" stroke-width="1" stroke-dasharray="2 2"/>`;
+    });
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${3 * (H + gap) + 4}">${out}</svg>`;
+}
+
+function renderPipe() {      // конвейер сборки: идущая сборка или последняя собранная версия
+  const prod = S.state.prod, b = S.build, last = prod.versions.at(-1);
+  const c = b ? b.card : last;
+  if (!b && !c) { $("pipe").innerHTML = `<div class="empty-card" style="padding: 20px">Версий ещё нет — выберите эпоху и нажмите «Собрать»</div>`; $("pipe-sub").textContent = ""; return; }
+  const steps = b ? b.steps : c.steps, quant = b ? b.quant : c.quant, epoch = b ? b.epoch : c.epoch;
+  const name = b ? b.version : c.version, tag = b ? b.tag : c.tag;
+  const gate = b ? b.gate : c.gate, exam = c && c.exam;
+  const now = b && !b.card ? STEPS.find(([k]) => k !== "adapter" && !steps[k] && !(k === "gate" && exam))?.[0] : null;
+  $("pipe-sub").textContent = b && !b.card ? `собирается ${name} — прод тем временем отвечает` : `${name} · ${c.date.replace("T", " ")}`;
+  const mb = bytes => `${num(bytes / 1e6, 1)} МБ`;
+  const cell = {
+    adapter: () => [`эпоха ${epoch}`, steps.merge ? `${mb(steps.merge.adapter)} — ${num(S.state.model.trainable / S.state.model.total * 100, 1)} % весов` : "снимок обучения"],
+    merge: s => [`${s.matrices} матриц`, `W + B·A × α/r · ${sec(s.seconds)}`],
+    gguf: s => [`${gb(s.size)} ГБ`, `16 бит на вес, один файл · ${sec(s.seconds)}`],
+    quant: s => [`${gb(s.size)} ГБ`, `${BITS[quant]} бит на вес · ${sec(s.seconds)}`],
+    ollama: s => [tag, `sha256 ${s.digest.slice(0, 8)}… · ${sec(s.seconds)}`],
+    exam: () => exam ? [`${exam.total} из 100`, `${sec(exam.seconds)} на реплику`] : b && b.progress ? [`${b.progress.done} из 100`, "реплик экзамена"] : ["100 реплик", "в Ollama, по одной"],
+    gate: () => name === prod.live ? ["● в проде", "отвечает игрокам"]
+      : gate ? [gate.ok ? "✓ пускают" : "✗ стоп", gate.ok ? (gate.vs ? `не хуже ${gate.vs} в проде` : "в проде тюна нет") : gate.why.join("; ")]
+      : ["не хуже прода", "ни в одном виде −3 из 20"],
+  };
+  $("pipe").innerHTML = `<div class="pipe">${STEPS.map(([k, icon, title], i) => {
+    const done = k === "adapter" || steps[k] || (k === "exam" && exam) || (k === "gate" && gate);
+    const state = k === "gate" && gate && !gate.ok ? "bad" : done ? "done" : b && b.error && k === now ? "bad" : k === now ? "run" : "wait";
+    const [big, small] = done ? cell[k](steps[k]) : k === now ? (k === "exam" ? cell.exam() : ["…", "идёт"]) : ["", ""];
+    return `${i ? "<i>→</i>" : ""}<div class="st ${state}"><b>${icon} ${title}</b><span class="big">${esc(big || "…")}</span><small>${esc(small)}</small></div>`;
+  }).join("")}</div>`;
+}
+
+function renderVersions() {
+  const prod = S.state.prod, rollback = prod.history.at(-1);
+  const rows = prod.versions.slice().reverse().map(v => {
+    const live = v.version === prod.live;
+    const gate = live ? `<span class="live-badge">● в проде</span>${prod.mode === "tuned" ? "" : ' <span class="soft">· сейчас отвечает база</span>'}`
+      : v.gate.ok ? `✓ не хуже ${v.gate.vs || "прода"}` : `✗ ${esc(v.gate.why.slice(0, 2).join(", "))}${v.gate.why.length > 2 ? ` <span class="soft">и ещё ${v.gate.why.length - 2}</span>` : ""}`;
+    const act = live ? (rollback ? `<button class="ghost press" data-rollback>↩ Откатить на ${rollback}</button>` : "")
+      : `<button class="ghost press" data-deploy="${v.version}" ${v.gate.ok && !S.switching ? "" : "disabled"} title="${v.gate.ok ? "" : "не прошла ворота"}">🚀 Выкатить</button>`;
+    return `<div class="ver"><span class="name">${v.version}</span><span class="what">эпоха ${v.epoch} · ${BITS[v.quant]} бит<small>${gb(v.size)} ГБ · собрана ${v.date.slice(5).replace("T", " ")}</small></span>
+      <span class="total">${v.exam.total}<small>из 100</small></span><span class="gate ${!live && !v.gate.ok ? "no" : ""}">${gate}</span><span class="act">${act}</span></div>`;
+  });
+  const base = prod.base;
+  if (base) rows.push(`<div class="ver base"><span class="name" style="font-size: 18px">база</span><span class="what">без тюна, с промптом<small>${gb(base.size)} ГБ · ${base.tag}</small></span>
+    <span class="total">${base.exam.total}<small>из 100</small></span><span class="gate soft">включается на палубе</span><span class="act"></span></div>`);
+  $("versions").innerHTML = rows.join("") || `<div class="empty-card">Версий нет — соберите первую кнопкой «Собрать»</div>`;
+}
+
+function renderRules() {
+  const prod = S.state.prod, v = prod.live || "v1", name = prod.base ? prod.base.tag.split(":")[0] : "kilka";
+  $("rules").innerHTML = [
+    ["📁", `<b>Где лежит.</b> <code>data/pirate/prod/${v}/</code> — GGUF, Modelfile и карточка с экзаменом; в Ollama — <code>${name}:${v}</code> с тем же sha256.`],
+    ["🚦", `<b>Проверка перед выкаткой.</b> Экзамен 100 реплик в Ollama; ворота пускают, если ни один вид не хуже прода на 3 из 20 и больше.`],
+    ["↩", `<b>Откат.</b> Прод снова на прежней версии — она уже в Ollama: ни сборки, ни перезапуска сервиса.`],
+  ].map(([i, t]) => `<i>${i}</i><div>${t}</div>`).join("");
+}
+
+function renderWas() {       // как было (PyTorch + вставки) → как стало (Ollama, GGUF); квантование — 16 / 8 / 4 бита
+  const b = S.state.prod.bench, q = S.state.prod.quant;
+  if (!b) {
+    $("was").innerHTML = $("quant").innerHTML = `<div class="empty-card" style="padding: 24px">Замеров ещё нет: <code>python -m pirate.release bench</code> (≈ 10 мин)</div>`;
+    $("was-sub").textContent = "";
+    return;
+  }
+  const t = b.torch, n = b[q];
+  $("was-sub").textContent = `тюн эпохи ${b.epoch}, 100 реплик экзамена, тот же процессор`;
+  const times = (a, z, more) => a / z >= 1.15 ? `<span class="x">в ${num(a / z, 1)} раза ${more}</span>` : `<span class="x same">так же</span>`;
+  const rows = [
+    ["Размер", `${gb(t.size)} ГБ`, `${gb(n.size)} ГБ`, times(t.size, n.size, "меньше")],
+    ["Память", `${gb(t.memory)} ГБ`, `${gb(n.memory)} ГБ`, times(t.memory, n.memory, "меньше")],
+    ["Загрузка", sec(t.load), sec(n.load), times(t.load, n.load, "быстрее")],
+    ["Ответ", sec(t.seconds), sec(n.seconds), times(t.seconds, n.seconds, "быстрее")],
+    ["Экзамен", `${t.ok}`, `${n.ok}`, `<span class="x same" title="ответ слово в слово как до подмены">${n.same} из 100 — дословно</span>`],
+  ];
+  $("was").innerHTML = `<div class="was"><div></div><div class="th" style="--tone: var(--read)">было: PyTorch + вставки</div><div></div><div class="th" style="--tone: var(--mustard)">стало: Ollama, ${BITS[q]} бит</div><div></div>`
+    + rows.map(([k, a, z, x]) => `<div class="k">${k}</div><div class="v old">${a}</div><i>→</i><div class="v">${z}</div>${x}`).join("") + "</div>";
+  const top = Math.max(...Object.keys(BITS).map(k => b[k].size));
+  $("quant").innerHTML = `<div class="quant"><span class="th">на вес</span><span class="th">размер</span><span class="th" style="text-align: right">ответ</span><span class="th" style="text-align: right">экзамен</span><span class="th" style="text-align: right">как было</span>`
+    + Object.entries(BITS).map(([k, bits]) => `<span class="bits ${k === q ? "row-live" : ""}">${bits} бит</span>
+      <div class="bar" style="--tone: ${k === q ? "var(--mustard)" : "var(--beige)"}"><i style="width: ${b[k].size / top * 100}%"></i><b>${gb(b[k].size)} ГБ</b></div>
+      <span class="n">${sec(b[k].seconds)}</span><span class="n">${b[k].ok}</span><span class="n" title="ответов слово в слово как в PyTorch">${b[k].same}</span>`).join("") + "</div>";
+}
+
 /* ---------- окна ---------- */
 function showView(view) {
   document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-current", b.dataset.view === view));
   $("view-app").hidden = view !== "app";
+  $("view-prod").hidden = view !== "prod";
   $("view-limits").hidden = view !== "limits";
-  $("train-panel").hidden = view === "limits";   // кривая обучения есть в «Переобучении», место — замерам
+  $("train-panel").hidden = view !== "app";   // кривая обучения есть в «Переобучении», место — замерам и версиям
   if (view === "limits") renderLimits();
+  if (view === "prod") renderProd();
 }
 
 function renderDossier() {
@@ -994,7 +1243,8 @@ function renderHow() {
       <div class="soft">перед каждой репликой: роль, формат, голос, всё досье и 2 примера</div></div>
     <div><h3>3 · Тюн</h3><div class="big">${num(pct, 1)} %</div>
       <div class="soft">весов учатся — вставки LoRA; ${S.state.train.length} примеров × ${epochsText(S.state.settings.epochs)}; промпт не нужен</div></div>
-    <div><h3>4 · Экзамен</h3><div class="big">100</div><div class="soft">реплик: формат, голос, обычные задачи, факты — как учили и другими словами; 80 из них модель не видела</div></div>`;
+    <div><h3>4 · Экзамен</h3><div class="big">100</div><div class="soft">реплик: формат, голос, обычные задачи, факты — как учили и другими словами; 80 из них модель не видела</div></div>
+    <div><h3>5 · Прод</h3><div class="big">${S.state.prod.base ? `${gb(S.state.prod.base.size)} ГБ` : "GGUF"}</div><div class="soft">вставки влиты в веса, ${BITS[S.state.prod.quant]} бит на вес, один файл GGUF; отвечает Ollama, PyTorch не нужен</div></div>`;
 }
 
 function renderParams() {
@@ -1018,23 +1268,59 @@ $("chips").addEventListener("click", e => {
   $("say").value = b.textContent;
   send(b.textContent);
 });
-$("brains").addEventListener("click", e => {
+$("brains").addEventListener("click", async e => {
   const b = e.target.closest("button[data-brain]");
   if (!b || b.disabled || S.brain === b.dataset.brain) return;
-  S.brain = b.dataset.brain;
+  const brain = b.dataset.brain, prod = S.state.prod;
+  if (brain === "both") log("sys", "⚖️", "Сравнение: одна реплика базе с промптом и тюну — прод не меняется");
+  else if (brain !== prod.mode) {           // переключить прод: сервис тот же, Ollama подгружает другую модель
+    S.switching = true;
+    renderControls();
+    try {
+      const s = await post("/api/prod/switch", { mode: brain });
+      Object.assign(prod, s);
+      log("sys", "🔁", `В проде теперь <b>${brain === "tuned" ? `тюн ${s.live}` : "база + промпт"}</b> — сервис не перезапускался, ${loadText(s.load)}`);
+    } catch (err) {
+      log("bad", "⚠️", esc(err.message));
+      return;
+    } finally {
+      S.switching = false;
+      renderControls();
+    }
+  }
+  S.brain = brain;
   renderStage();
   $("rows").innerHTML = "";
   setStatus("", "ждёт реплику");
   renderControls();
-  log("sys", "🔁", `Мозг: <b>${BRAINS[S.brain].title.toLowerCase()}</b>`);
 });
-$("epochs").addEventListener("click", e => {
-  const b = e.target.closest("button[data-epoch]");
-  if (!b || b.disabled) return;
-  S.epoch = +b.dataset.epoch === S.state.run.best ? null : +b.dataset.epoch;
+$("view-prod").addEventListener("click", async e => {
+  const pick = e.target.closest("button[data-epoch], button[data-quant]");
+  if (pick) {
+    if (pick.dataset.epoch) S.pick.epoch = +pick.dataset.epoch; else S.pick.quant = pick.dataset.quant;
+    renderProd();
+    return;
+  }
+  const deploy = e.target.closest("[data-deploy]"), back = e.target.closest("[data-rollback]");
+  if (!deploy && !back || S.switching) return;
+  S.switching = true;
+  renderVersions();
+  try {
+    const s = deploy ? await post("/api/prod/deploy", { version: deploy.dataset.deploy }) : await post("/api/prod/rollback");
+    log("sys", deploy ? "🚀" : "↩", `${deploy ? "Выкачена" : "Откат на"} <b>${s.live}</b> — сервис не перезапускался, ${loadText(s.load)}`);
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    S.switching = false;
+  }
+  await refresh();
   renderStage();
-  renderControls();
-  log("sys", "📸", `Тюн отвечает со снимка эпохи <b>${b.dataset.epoch}</b>${+b.dataset.epoch === S.state.run.last && S.state.run.last !== S.state.run.best ? " — переобученный" : ""}`);
+  renderAll();
+});
+$("build-btn").addEventListener("click", async () => {
+  if (S.busy === "build") { await fetch("/api/job", { method: "DELETE" }); return; }
+  S.build = null;
+  startJob("build", "/api/prod/build", S.pick);
 });
 $("tabs").addEventListener("click", e => { const b = e.target.closest("button[data-view]"); if (b) showView(b.dataset.view); });
 $("train-btn").addEventListener("click", async () => {
@@ -1063,12 +1349,11 @@ $("answers").addEventListener("click", e => {
   if (!modes.length) return;
   $("answers").hidden = true;
   showView("app");
-  if (S.epoch) { S.epoch = null; renderStage(); renderControls(); }
   $("say").value = row.text;
-  log("you", "👤", esc(row.text), "из экзамена");
+  log("you", "👤", esc(row.text), "из экзамена в PyTorch");
   const results = modes.map(m => {
     const a = c.answers[key(m)][i];
-    return { ...a, brain: m, mode: m, epoch: c.best, parsed: a.format ? parse(a.answer) : null };
+    return { ...a, brain: m, mode: m, version: `эп. ${c.best}`, parsed: a.format ? parse(a.answer) : null };
   });
   results.forEach(show);
   perform(results, row);
