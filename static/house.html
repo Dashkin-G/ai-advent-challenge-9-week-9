@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Домовой</title>
+<link rel="icon" href="data:,">
+<style>
+  /* Стиль — «инженерный блокнот», как у робота и пирата. Ученик до — бежевый, после — горчичный, учитель — зелёный. */
+  :root {
+    --paper: #f4efe6; --card: #fffdf9; --ink: #23264d; --soft: #50557a; --faint: rgba(35, 38, 77, .14);
+    --accent: #e5603b; --mustard: #f2d37a; --beige: #e6dccb; --read: #ebe5d9; --green: #cfe3d2;
+    --err: #b42318; --err-bg: #fbe3dc;
+    --line: 2px solid var(--ink);
+    --display: Bahnschrift, "Segoe UI", sans-serif;
+    --mono: "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column; gap: 12px; padding: 14px 32px 16px;
+    color: var(--ink); font: 19px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    background: var(--paper) radial-gradient(rgba(35, 38, 77, .09) 1.3px, transparent 1.6px) 0 0 / 24px 24px;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .45; }
+  :focus-visible { outline: 3px dashed var(--ink); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  .soft { color: var(--soft); }
+  .grow { flex: 1; }
+  h2 { margin: 0; font: 700 17px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; }
+
+  .press { --shade: var(--ink); border: var(--line); box-shadow: 3px 3px 0 var(--shade); transition: transform .08s, box-shadow .08s; }
+  .press:not(:disabled):hover { box-shadow: 4px 4px 0 var(--shade); }
+  .press:not(:disabled):active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--shade); }
+  .press:disabled { box-shadow: none; }
+  .main {
+    --shade: var(--accent); padding: 10px 28px; border-radius: 12px; background: var(--ink); color: var(--card);
+    font: 600 23px/1.2 var(--display); box-shadow: 5px 5px 0 var(--shade); white-space: nowrap;
+  }
+  .main.quiet { --shade: var(--ink); background: var(--card); color: var(--ink); }
+  .ghost { padding: 6px 16px; border-radius: 10px; background: var(--card); font: 600 19px var(--display); white-space: nowrap; }
+  .round { width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--card); font: 700 22px/1 var(--display); }
+  .card { border: var(--line); border-radius: 16px; background: var(--card); box-shadow: 4px 4px 0 var(--ink); }
+
+  header { display: flex; align-items: center; gap: 14px; }
+  .logo { width: 48px; height: 44px; flex: none; }
+  h1 { margin: 0; font: 600 34px/1 var(--display); }
+  .chip { padding: 3px 12px; border: 2px solid rgba(35, 38, 77, .3); border-radius: 8px; color: var(--soft); font-size: 17px; white-space: nowrap; }
+  .tabs { display: flex; margin-left: 6px; border: var(--line); border-radius: 10px; overflow: hidden; }
+  .tabs button { padding: 5px 16px; border: none; background: var(--card); font: 600 19px var(--display); white-space: nowrap; }
+  .tabs button + button { border-left: var(--line); }
+  .tabs button[aria-current="true"] { background: var(--ink); color: var(--card); }
+  .view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .app { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 540px; gap: 22px; }
+
+  /* Дом */
+  .home { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .home-head { flex: none; display: flex; align-items: center; gap: 14px; padding: 10px 16px 10px 20px; border-bottom: var(--line); }
+  .status { padding: 3px 12px; border: var(--line); border-radius: 10px; background: var(--card); font: 700 17px var(--display); white-space: nowrap; }
+  .status.ok { background: var(--mustard); }
+  .status.bad { background: var(--err-bg); border-color: var(--err); color: var(--err); }
+  .status.wait::after { content: "…"; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .brain-chip { padding: 3px 12px; border: var(--line); border-radius: 10px; background: var(--tone); font: 700 17px var(--display); white-space: nowrap; }
+  .plan { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 0; margin: 14px 20px 6px; border: 4px solid var(--ink); border-radius: 6px; background: #8a8fb0; }
+  .room { --lit: 0; position: relative; min-width: 0; min-height: 0; border: 2px solid var(--ink); background: #3b3f63; cursor: pointer; overflow: hidden; transition: background .5s; }
+  .room::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 22%, #fff4c8, #f6dc8f 55%, #e9c56a); opacity: var(--lit); transition: opacity .6s; }
+  .room > * { position: absolute; }
+  .room .name { left: 10px; top: 6px; padding: 0 8px; border-radius: 6px; background: rgba(255, 253, 249, .88); font: 700 16px var(--display); }
+  .room.here .name { background: var(--ink); color: var(--card); }
+  .room .lamp { left: 50%; top: 10px; width: 26px; height: 26px; margin-left: -13px; border: 2px solid var(--ink); border-radius: 50%; background: #7d819f; transition: background .4s, box-shadow .4s; }
+  .room.on .lamp { background: #fff3b0; box-shadow: 0 0 calc(10px + var(--lit) * 30px) calc(var(--lit) * 12px) #ffe27a; }
+  .room .win { right: 12px; top: 8px; width: 74px; height: 46px; border: 2px solid var(--ink); background: #a9d3e6; overflow: hidden; }
+  .room .win .sash { position: absolute; inset: 0 50% 0 0; border-right: 2px solid var(--ink); background: rgba(255, 255, 255, .35); transform-origin: left; transition: transform .5s; }
+  .room .win.open .sash { transform: perspective(80px) rotateY(-60deg); }
+  .room .win.open::after { content: "≋"; position: absolute; right: 6px; top: 6px; color: #fff; font: 700 20px/1 var(--display); animation: blink 1.4s infinite; }
+  .room .cur { position: absolute; top: 0; bottom: 0; width: 18%; background: repeating-linear-gradient(90deg, #c4573a 0 5px, #d9704f 5px 10px); transition: width .6s; }
+  .room .cur.l { left: 0; } .room .cur.r { right: 0; }
+  .room .win.shut .cur { width: 51%; }
+  .room .temp { left: 10px; bottom: 8px; padding: 0 8px; border-radius: 6px; background: rgba(255, 253, 249, .88); font: 700 17px var(--display); transition: color .4s; }
+  .room .temp.warm { color: #c2410c; } .room .temp.cold { color: #1d5fa8; }
+  .room .music { right: 12px; bottom: 6px; font-size: 26px; opacity: 0; }
+  .room .music.on { opacity: 1; animation: notes 1s ease-in-out infinite alternate; }
+  @keyframes notes { from { transform: translateY(0) rotate(-8deg); } to { transform: translateY(-8px) rotate(8deg); } }
+  .room .tv { left: 14px; top: 46%; width: 70px; height: 44px; border: 3px solid var(--ink); border-radius: 4px; background: #1a1c33; transition: background .4s, box-shadow .4s; }
+  .room .tv.on { background: linear-gradient(135deg, #7fc8f8, #f6a6c1, #f9e07f); box-shadow: 0 0 22px #9fd8ff; }
+  .room .tv i { position: absolute; left: 50%; bottom: -12px; width: 20px; height: 8px; margin-left: -10px; background: var(--ink); }
+  .room .gear { left: 14px; top: 46%; display: flex; gap: 8px; font-size: 30px; }
+  .room .gear span { position: relative; filter: grayscale(.7); transition: filter .4s; }
+  .room .gear span.on { filter: none; }
+  .room .gear span.on::after { content: "♨"; position: absolute; left: 6px; top: -22px; font-size: 20px; color: #fff; animation: notes .6s infinite alternate; }
+  .room .lock { left: 50%; top: 46%; margin-left: -20px; font-size: 36px; }
+  .room .who { left: 50%; bottom: 4px; margin-left: -16px; font-size: 30px; opacity: 0; transition: opacity .3s; }
+  .room.here .who { opacity: 1; }
+  .room.hit { animation: hit .9s; }
+  @keyframes hit { 30% { box-shadow: inset 0 0 0 5px var(--accent); } }
+  .vac { position: absolute; z-index: 2; width: 34px; height: 34px; margin: -17px 0 0 -17px; border: 3px solid var(--ink); border-radius: 50%; background: #d7dbe8; transition: left 1.4s ease-in-out, top 1.4s ease-in-out; }
+  .vac::after { content: ""; position: absolute; left: 9px; top: 3px; width: 10px; height: 5px; border-radius: 3px; background: var(--accent); }
+  .vac.busy { animation: spin .5s linear 6; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .heard { flex: none; display: flex; align-items: center; gap: 10px; min-height: 42px; margin: 0 20px; font-size: 18px; }
+  .heard b { font: 600 17px var(--mono); }
+  .cmds { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 40px; padding: 6px 20px 10px; }
+  .cmd { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border: 2px solid var(--ink); border-radius: 8px; background: var(--card); font: 600 15px var(--mono); white-space: nowrap; transition: background .2s; }
+  .cmd.done { background: var(--mustard); }
+  .cmd.bad { border-color: var(--err); background: var(--err-bg); color: var(--err); }
+  .cmd.miss { border-style: dashed; color: var(--soft); }
+  .unclear { max-width: 100%; padding: 4px 12px; border: 2px solid var(--err); border-radius: 8px; background: var(--err-bg); color: var(--err); font: 14px/1.4 var(--mono); overflow-wrap: anywhere; }
+  .rows { flex: none; display: flex; flex-direction: column; gap: 5px; padding: 8px 20px; border-top: var(--line); }
+  .res { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; cursor: pointer; border-radius: 8px; }
+  .res:hover { background: #faf6ee; }
+  .res.shown { outline: 2px solid var(--ink); }
+  .res > b { flex: none; min-width: 120px; padding: 1px 8px; border-radius: 6px; background: var(--tone); font: 700 15px var(--display); text-align: center; white-space: nowrap; }
+  .res code { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--soft); font: 14px var(--mono); }
+  .res .meta { flex: none; color: var(--soft); font: 600 14px var(--display); white-space: nowrap; }
+  .ck { flex: none; padding: 1px 8px; border-radius: 6px; background: var(--mustard); font: 700 14px var(--display); white-space: nowrap; }
+  .ck.no { background: var(--err-bg); color: var(--err); }
+  .ck.idle { background: var(--read); color: var(--soft); }
+
+  /* Мозг и лента */
+  .side { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .brain { flex: none; padding: 14px 18px 16px; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 10px; border: var(--line); border-radius: 12px; overflow: hidden; }
+  .seg button { padding: 8px 4px; border: none; background: var(--card); font: 600 16px/1.15 var(--display); }
+  .seg button + button { border-left: var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--tone); }
+  .brain-sub { margin-top: 8px; color: var(--soft); font-size: 16px; }
+  .log { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 12px; }
+  .log-list { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; scrollbar-width: thin; }
+  .msg { display: grid; grid-template-columns: 30px 1fr; gap: 2px 8px; align-items: start; margin-bottom: 8px; font-size: 16px; }
+  .msg > i { font-style: normal; font-size: 20px; line-height: 1.3; }
+  .msg small { grid-column: 2; color: var(--soft); font-size: 13px; line-height: 1.1; }
+  .msg .body { grid-column: 2; min-width: 0; overflow-wrap: anywhere; }
+  .msg.you .body { font: 600 16px var(--mono); }
+  .msg.raw .body { font: 14px/1.4 var(--mono); color: var(--soft); }
+  .msg.bad .body { color: var(--err); font-weight: 700; }
+  .msg.sys .body { color: var(--soft); }
+
+  .command { flex: none; display: flex; align-items: center; gap: 14px; }
+  .command input { flex: 1; min-width: 0; padding: 10px 18px; border: var(--line); border-radius: 12px; background: var(--card); font: 22px var(--mono); box-shadow: 3px 3px 0 var(--ink); }
+  .command .where { flex: none; font: 600 18px var(--display); }
+  .chips { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .chips span { color: var(--soft); font-size: 15px; font-weight: 600; }
+  .chips span + button { margin-left: -4px; }
+  .chips button { padding: 2px 11px; border: 2px solid var(--ink); border-radius: 18px; background: var(--card); font: 15px var(--mono); }
+  .chips button:not(:disabled):hover { background: var(--mustard); }
+  .chips i { width: 2px; height: 22px; margin: 0 4px; background: var(--faint); }
+
+  /* Обучение */
+  .train { flex: none; display: flex; align-items: center; gap: 22px; min-height: 78px; padding: 10px 20px; }
+  .train .info { flex: 1; min-width: 0; }
+  .train .line { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; font-size: 18px; }
+  .train .line b { font: 700 24px var(--display); }
+  .meter { position: relative; height: 12px; margin-top: 6px; border: var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+  .meter i { display: block; height: 100%; width: 0; background: var(--mustard); transition: width .4s; }
+  .warn { color: var(--err); font-weight: 600; }
+  .spark { flex: none; display: flex; align-items: center; gap: 12px; }
+  .spark svg { width: 230px; height: 58px; overflow: visible; }
+  .spark .num { font: 700 20px var(--display); white-space: nowrap; }
+  .spark small { display: block; color: var(--soft); font: 14px "Segoe UI", sans-serif; }
+  .train .tools { flex: none; display: flex; flex-direction: column; gap: 8px; }
+  .train .tools .ghost { padding: 4px 14px; font-size: 17px; }
+
+  /* Вкладка «Учитель → ученик» */
+  .distill { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 16px 22px; }
+  .distill .card { padding: 12px 20px 14px; min-height: 0; }
+  .distill .head { display: flex; align-items: center; gap: 12px; }
+  .distill .head .soft { font-size: 16px; }
+  .score { display: grid; grid-template-columns: 210px repeat(3, minmax(0, 1fr)); gap: 8px 14px; align-items: center; margin-top: 10px; }
+  .score .th { padding-bottom: 2px; border-bottom: 5px solid var(--tone); font: 700 18px var(--display); }
+  .score .th small { display: block; color: var(--soft); font: 14px "Segoe UI", sans-serif; }
+  .score .rl { font: 700 18px/1.15 var(--display); }
+  .score .rl small { display: block; color: var(--soft); font: 14px/1.2 "Segoe UI", sans-serif; }
+  .score .v { font: 700 30px/1 var(--display); }
+  .score .v small { margin-left: 6px; color: var(--soft); font: 600 15px var(--display); }
+  .score .v.best { color: #2e7d4f; }
+  .bar { position: relative; height: 34px; border-radius: 8px; background: var(--read); overflow: hidden; }
+  .bar i { position: absolute; inset: 0 auto 0 0; border-right: 2px solid var(--ink); background: var(--tone); }
+  .bar b { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font: 700 20px var(--display); }
+  .bar b small { color: var(--soft); font: 600 14px var(--display); }
+  .sum { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; padding-top: 10px; border-top: 2px solid var(--faint); font-size: 18px; }
+  .sum b { font: 700 24px var(--display); }
+  .kinds { display: grid; grid-template-columns: 230px minmax(0, 1fr) 150px; gap: 8px 14px; align-items: center; margin-top: 10px; }
+  .kinds .kind { font: 700 18px/1.15 var(--display); cursor: pointer; }
+  .kinds .kind small { display: block; color: var(--soft); font: 14px/1.2 "Segoe UI", sans-serif; }
+  .kinds .kind:hover { text-decoration: underline; }
+  .pair { display: grid; gap: 3px; }
+  .pair .bar { height: 22px; }
+  .pair .bar b { left: 8px; font-size: 15px; }
+  .verdict-chip { justify-self: start; padding: 3px 10px; border: var(--line); border-radius: 8px; background: var(--tone); font: 700 15px var(--display); white-space: nowrap; }
+  .funnel { display: grid; grid-template-columns: minmax(0, 1fr) 70px 70px; gap: 6px 12px; align-items: baseline; margin-top: 10px; font-size: 16px; }
+  .funnel .th { color: var(--soft); font: 700 13px var(--display); letter-spacing: .05em; text-transform: uppercase; }
+  .funnel .n { font: 700 18px var(--display); text-align: right; }
+  .funnel .n.cut { color: var(--err); }
+  .funnel .ex { grid-column: 1 / -1; margin: -4px 0 4px 14px; color: var(--soft); font: 13px var(--mono); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .bill { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 10px; padding-top: 8px; border-top: 2px solid var(--faint); font-size: 16px; }
+  .bill b { font: 700 20px var(--display); }
+  .empty-card { padding: 40px; color: var(--soft); font-size: 20px; text-align: center; }
+  .probe { margin-top: 10px; font-size: 15px; }
+  .probe .ep { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 2px 0; border-top: 1px solid var(--faint); }
+  .probe .ep span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 14px var(--mono); }
+  .probe .ep span.no { color: var(--err); }
+
+  /* Окна */
+  .overlay { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 30px; background: rgba(35, 38, 77, .45); }
+  .dialog { width: min(1500px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 14px; padding: 20px 26px; border: var(--line); border-radius: 18px; background: var(--card); box-shadow: 6px 6px 0 var(--ink); overflow: hidden; }
+  .dialog > header h2 { font: 700 28px var(--display); letter-spacing: 0; text-transform: none; }
+  .dialog .close { margin-left: auto; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filters button { padding: 3px 12px; border: var(--line); border-radius: 8px; background: var(--card); font: 600 16px var(--display); }
+  .filters button[aria-pressed="true"] { background: var(--ink); color: var(--card); }
+  .table-box { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { position: sticky; top: 0; z-index: 1; padding: 6px 10px; background: var(--card); font: 700 15px var(--display); letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+  th.m { border-bottom: 4px solid var(--tone); }
+  td { padding: 5px 10px; border-top: 2px solid var(--faint); vertical-align: top; }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: #faf6ee; }
+  td.q { font: 600 15px var(--mono); }
+  td.q small { display: block; color: var(--soft); font: 13px "Segoe UI", sans-serif; }
+  .cell { display: flex; gap: 6px; font: 13px/1.4 var(--mono); }
+  .cell span { overflow-wrap: anywhere; }
+  .cell .x { color: var(--err); }
+  .ok-mark, .no-mark { flex: none; font: 700 19px/1.1 var(--display); }
+  .no-mark { color: var(--err); }
+  .how { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .how > div { padding: 16px 18px; border: var(--line); border-radius: 14px; background: var(--paper); }
+  .how h3 { margin: 0 0 12px; font: 700 21px var(--display); }
+  .how .big { font: 700 40px/1 var(--display); }
+  .how pre { margin: 8px 0 0; font: 14px/1.5 var(--mono); white-space: pre-wrap; }
+  .terms { display: grid; grid-template-columns: repeat(3, auto 1fr); gap: 6px 14px; font-size: 17px; }
+  .terms b { white-space: nowrap; }
+  .terms span { color: var(--soft); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; font-size: 18px; }
+  .kv b { white-space: nowrap; }
+  .prompt { max-height: 62vh; overflow: auto; margin: 0; padding: 12px 16px; border-radius: 10px; background: var(--read); font: 15px/1.5 var(--mono); white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <svg class="logo" viewBox="0 0 52 48" aria-hidden="true">
+    <path d="M6 24 L26 6 L46 24" fill="none" stroke="#23264d" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+    <rect x="11" y="22" width="30" height="22" fill="#f2d37a" stroke="#23264d" stroke-width="3"/>
+    <rect x="22" y="30" width="9" height="14" fill="#23264d"/>
+    <circle cx="17" cy="29" r="2.5" fill="#e5603b"/>
+  </svg>
+  <h1>Домовой</h1>
+  <nav class="tabs" id="tabs"><button type="button" data-view="app" aria-current="true">Дом</button><button type="button" data-view="distill">Учитель → ученик</button></nav>
+  <span class="chip" id="model-chip"></span>
+  <span class="grow"></span>
+  <button class="ghost press" id="prompt-btn">Промпт</button>
+  <button class="round press" id="how-btn" aria-label="Как это устроено">?</button>
+</header>
+
+<div class="view" id="view-app">
+<main class="app">
+  <section class="card home">
+    <div class="home-head">
+      <h2>Дом</h2>
+      <span class="brain-chip" id="brain-chip"></span>
+      <span class="status" id="status">ждёт фразу</span>
+      <span class="grow"></span>
+      <span class="soft" style="font-size: 16px">клик по комнате — встать там: колонка слышит, где вы</span>
+      <button class="ghost press" id="home-reset" title="Вернуть дом как было" style="padding: 2px 12px; font-size: 16px">↻ дом</button>
+    </div>
+    <div class="plan" id="plan"></div>
+    <div class="heard" id="heard"></div>
+    <div class="cmds" id="cmds"></div>
+    <div class="rows" id="rows" hidden></div>
+  </section>
+
+  <aside class="side">
+    <section class="card brain">
+      <h2>Мозг дома</h2>
+      <div class="seg" id="brains">
+        <button type="button" data-brain="before">Ученик<br>до</button>
+        <button type="button" data-brain="after">Ученик<br>после</button>
+        <button type="button" data-brain="teacher">Учитель</button>
+        <button type="button" data-brain="all">Все<br>трое</button>
+      </div>
+      <div class="brain-sub" id="brain-sub"></div>
+    </section>
+    <section class="card log">
+      <h2>Лента</h2>
+      <div class="log-list" id="log"></div>
+    </section>
+  </aside>
+</main>
+
+<form class="command" id="command">
+  <span class="where" id="where"></span>
+  <input id="say" autocomplete="off" placeholder="скажите дому: «включи свет», «мне холодно», «я ухожу»">
+  <button class="main press" id="go">▶ Сказать</button>
+</form>
+<div class="chips" id="chips"></div>
+</div>
+
+<div class="view" id="view-distill" hidden>
+  <div class="distill">
+    <section class="card" style="grid-column: 1 / -1">
+      <div class="head"><h2>Три мозга на одном тесте</h2><span class="soft" id="score-sub"></span><span class="grow"></span>
+        <button class="ghost press" id="answers-btn">Все ответы</button><button class="ghost press" id="exam-run">▶ Провести экзамен</button></div>
+      <div id="score"></div>
+    </section>
+    <section class="card" style="overflow: auto; scrollbar-width: thin">
+      <div class="head"><h2>Где ученик заменяет учителя</h2><span class="soft">по 16 фраз каждого вида</span></div>
+      <div id="kinds"></div>
+      <div id="probe"></div>
+    </section>
+    <section class="card" style="overflow: auto; scrollbar-width: thin">
+      <div class="head"><h2>Датасет от учителя</h2><span class="soft" id="data-sub"></span></div>
+      <div id="funnel"></div>
+    </section>
+  </div>
+</div>
+
+<footer class="card train" id="train-panel">
+  <button class="main press" id="train-btn"></button>
+  <div class="info" id="train-info"></div>
+  <div class="spark" id="spark"></div>
+  <div class="tools">
+    <button class="ghost press" id="params-btn" hidden>Параметры</button>
+    <button class="ghost press" id="reset-btn" hidden title="Ученик вернётся к состоянию до обучения; адаптер — в архив">↺ Сбросить</button>
+  </div>
+</footer>
+
+<div class="overlay" id="answers" hidden>
+  <div class="dialog">
+    <header style="display: flex; align-items: center; gap: 16px"><h2 id="answers-title">Ответы трёх мозгов</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="filters" id="filters"></div>
+    <div class="table-box"><table id="answers-table"></table></div>
+  </div>
+</div>
+
+<div class="overlay" id="how" hidden>
+  <div class="dialog">
+    <header style="display: flex; align-items: center"><h2>Дистилляция: большая модель учит маленькую</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="how" id="how-cards"></div>
+    <div class="terms">
+      <b>Дистилляция</b><span>большая модель учит маленькую</span>
+      <b>Учитель</b><span>большая модель в облаке</span>
+      <b>Ученик</b><span>маленькая модель на ноутбуке</span>
+      <b>LoRA</b><span>маленькие обучаемые вставки в слои</span>
+      <b>Токен</b><span>кусочек слова для модели</span>
+      <b>Лосс</b><span>ошибка модели на ответе</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="params" hidden>
+  <div class="dialog" style="width: min(900px, 100%)">
+    <header style="display: flex; align-items: center"><h2>Параметры обучения</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="kv" id="passport"></div>
+  </div>
+</div>
+
+<div class="overlay" id="prompt" hidden>
+  <div class="dialog" style="width: min(1100px, 100%)">
+    <header style="display: flex; align-items: center"><h2>Промпт: с ним дом понимают ученик до обучения и учитель</h2><button class="round press close" data-close aria-label="Закрыть">✕</button></header>
+    <div class="soft" id="prompt-sub"></div>
+    <pre class="prompt" id="prompt-text"></pre>
+  </div>
+</div>
+
+<script>
+const BRAINS = {
+  before: { title: "Ученик до", short: "ученик до", tone: "var(--beige)", sub: "Qwen3.5-0.8B на ноутбуке + промпт: правила дома и 4 примера" },
+  after: { title: "Ученик после", short: "ученик после", tone: "var(--mustard)", sub: "та же Qwen3.5-0.8B + вставки LoRA, выученные на ответах учителя; промпта нет" },
+  teacher: { title: "Учитель", short: "учитель", tone: "var(--green)", sub: "" },
+  all: { title: "Все трое", tone: "linear-gradient(90deg, var(--beige) 33%, var(--mustard) 33% 66%, var(--green) 66%)", sub: "одна фраза трём мозгам; клик по строке — показать её на доме" },
+};
+const KINDS = {
+  direct: { title: "Прямая команда", sub: "«выключи телевизор»", icon: "👉" },
+  multi: { title: "Несколько команд", sub: "«закрой окна везде»", icon: "➕" },
+  indirect: { title: "Косвенная просьба", sub: "«бр-р, холодина»", icon: "💭" },
+  none: { title: "Не команда", sub: "«расскажи анекдот» → []", icon: "🚫" },
+};
+const ICONS = { "свет": "💡", "шторы": "🪟", "окно": "🌬", "отопление": "🌡", "музыка": "🎵", "телевизор": "📺", "чайник": "🫖", "кофеварка": "☕", "пылесос": "🤖", "замок": "🔒" };
+const LAYOUT = ["спальня", "детская", "ванная", "кухня", "гостиная", "прихожая"];   // план: верхний ряд, нижний ряд
+const EXAMPLES = [
+  ["прямо", ["включи свет", "пропылесось кухню"]],
+  ["несколько", ["закрой окна везде", "выключи телевизор и включи музыку"]],
+  ["косвенно", ["бр-р, холодина", "будем смотреть кино", "я ухожу на работу"]],
+  ["не команда", ["расскажи анекдот", "закажи пиццу"]],
+];
+const S = { state: null, brain: "after", room: "гостиная", busy: null, asking: false, live: null, exam: null, home: null, shown: null, filter: "all" };
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const num = (x, d = 0) => x.toLocaleString("ru-RU", { maximumFractionDigits: d, minimumFractionDigits: d });
+const minutes = s => s < 60 ? `${Math.round(s)} с` : `${Math.floor(s / 60)} мин ${String(Math.round(s % 60)).padStart(2, "0")} с`;
+const short = (s, n) => (s = String(s).replace(/\s+/g, " ").trim()).length > n ? s.slice(0, n - 1) + "…" : s;
+const mark = ok => ok == null ? "" : ok ? '<span class="ok-mark">✓</span>' : '<span class="no-mark">✗</span>';
+const rub = usd => usd * S.state.rates.usd_rub;
+const money = r => r >= 100 ? `${num(r)} ₽` : r >= 1 ? `${num(r, 1)} ₽` : r >= 0.01 ? `${num(r, 2)} ₽` : `${num(r * 100, 2)} коп.`;
+
+/* ---------- дом: состояние устройств и как его рисовать ---------- */
+function freshHome() {
+  const home = {};
+  for (const r of S.state.rooms) home[r] = { light: r === "гостиная" ? 2 : 0, shut: false, open: false, temp: 21, music: 0, tv: 0, kettle: false, coffee: false };
+  home.vac = "прихожая";
+  home.locked = true;
+  return home;
+}
+
+function has(device, room) { return S.state.devices[device].rooms.includes(room); }
+
+function renderPlan() {
+  const h = S.home;
+  $("plan").innerHTML = LAYOUT.map(r => {
+    const s = h[r];
+    const win = has("окно", r) ? `<div class="win ${s.open ? "open" : ""} ${s.shut ? "shut" : ""}"><div class="sash"></div><div class="cur l"></div><div class="cur r"></div></div>` : "";
+    const temp = has("отопление", r) ? `<div class="temp ${s.temp > 21 ? "warm" : s.temp < 21 ? "cold" : ""}">🌡 ${s.temp}°</div>` : "";
+    const music = has("музыка", r) ? `<div class="music ${s.music ? "on" : ""}" style="font-size: ${18 + s.music * 6}px">🎵</div>` : "";
+    const tv = r === "гостиная" ? `<div class="tv ${s.tv ? "on" : ""}"><i></i></div>` : "";
+    const gear = r === "кухня" ? `<div class="gear"><span class="${s.kettle ? "on" : ""}">🫖</span><span class="${s.coffee ? "on" : ""}">☕</span></div>` : "";
+    const lock = r === "прихожая" ? `<div class="lock" title="замок входной двери">${h.locked ? "🔒" : "🔓"}</div>` : "";
+    return `<div class="room ${s.light ? "on" : ""} ${r === S.room ? "here" : ""}" data-room="${r}" style="--lit: ${[0, .45, .75, 1][s.light]}">
+      <div class="name">${r}</div><div class="lamp"></div>${win}${tv}${gear}${lock}${temp}${music}<div class="who">🧍</div></div>`;
+  }).join("") + `<div class="vac" id="vac"></div>`;
+  placeVac(false);
+}
+
+function placeVac(busy) {
+  const room = document.querySelector(`.room[data-room="${S.home.vac}"]`), vac = $("vac");
+  if (!room || !vac) return;
+  vac.style.left = `${room.offsetLeft + room.offsetWidth * .72}px`;
+  vac.style.top = `${room.offsetTop + room.offsetHeight * .72}px`;
+  vac.classList.toggle("busy", busy);
+}
+
+function apply(command) {     // одна команда дому: меняем состояние, комната вспыхивает
+  const [room, device, action] = command.split(" "), h = S.home, s = h[room];
+  if (!s) return;
+  if (device === "свет") s.light = action === "вкл" ? Math.max(2, s.light) : action === "выкл" ? 0 : action === "ярче" ? Math.min(3, Math.max(1, s.light) + 1) : Math.max(s.light ? 1 : 0, s.light - 1);
+  if (device === "шторы") s.shut = action === "закрыть";
+  if (device === "окно") s.open = action === "открыть";
+  if (device === "отопление") s.temp += action === "теплее" ? 2 : -2;
+  if (device === "музыка") s.music = action === "вкл" ? Math.max(1, s.music) : action === "выкл" ? 0 : action === "громче" ? Math.min(3, s.music + 1) : Math.max(s.music ? 1 : 0, s.music - 1);
+  if (device === "телевизор") s.tv = action === "выкл" ? 0 : 1;
+  if (device === "чайник") s.kettle = true;
+  if (device === "кофеварка") s.coffee = true;
+  if (device === "замок") h.locked = action === "закрыть";
+  if (device === "пылесос") h.vac = room;
+  renderPlan();
+  if (device === "пылесос") requestAnimationFrame(() => placeVac(true));
+  const el = document.querySelector(`.room[data-room="${room}"]`);
+  if (el) { el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit"); }
+}
+
+/* Ответ мозга на доме: команды по очереди, у каждой — чип; не JSON — красная полоса */
+async function perform(r) {
+  S.shown = r;
+  document.querySelectorAll(".res").forEach(x => x.classList.toggle("shown", x.dataset.mode === r.mode));
+  const box = $("cmds");
+  if (!r.commands) {
+    box.innerHTML = `<span class="unclear">дом не понял ответ: ${esc(short(r.answer, 160))}</span>`;
+    return;
+  }
+  if (!r.commands.length) {
+    box.innerHTML = `<span class="cmd">[ ] — не просьба к дому, ничего не делаю</span>`;
+    return;
+  }
+  const valid = c => { const [room, device, action] = c.split(" "); const d = S.state.devices[device];
+    return !!d && d.rooms.includes(room) && d.actions.includes(action) && c.split(" ").length === 3; };
+  const miss = r.check ? r.check.missing : [];
+  box.innerHTML = r.commands.map((c, i) => `<span class="cmd ${valid(c) ? "" : "bad"}" data-i="${i}" title="${valid(c) ? "" : "такого в доме нет"}">${ICONS[c.split(" ")[1]] || "❓"} ${esc(c)}</span>`).join("")
+    + miss.map(c => `<span class="cmd miss" title="не хватает — так ответил бы эталон">+ ${esc(c)}</span>`).join("");
+  for (const [i, c] of r.commands.entries()) {
+    if (S.shown !== r) return;
+    await new Promise(ok => setTimeout(ok, 380));
+    const chip = box.querySelector(`[data-i="${i}"]`);
+    if (valid(c)) { apply(c); chip && chip.classList.add("done"); }
+  }
+}
+
+/* ---------- загрузка и поток событий ---------- */
+async function load() {
+  await refresh(true);
+  S.home = freshHome();
+  $("model-chip").textContent = `ученик — ${S.state.model.name.split("/")[1]} на ноутбуке · учитель — ${S.state.teacher.name} в облаке`;
+  BRAINS.teacher.sub = `${S.state.teacher.name} в облаке Alibaba + тот же промпт; платно — за токены`;
+  $("chips").innerHTML = EXAMPLES.map(([group, list], i) => `${i ? "<i></i>" : ""}<span>${group}:</span>` +
+    list.map(t => `<button type="button">${esc(t)}</button>`).join("")).join("");
+  log("sys", "🏠", "Скажите дому что-нибудь. Мозг отвечает списком команд <b>«комната устройство действие»</b> — по нему дом включает свет, закрывает шторы, греет.");
+  renderPlan();
+  renderAll();
+  if (S.state.job.running) { S.busy = S.state.job.kind.replace("house-", ""); follow(); }
+}
+
+async function refresh(initial = false) {
+  S.state = await (await fetch("/api/state")).json();
+  S.exam = S.state.exam;
+  if (initial || (!S.state.ready && ["after", "all"].includes(S.brain))) S.brain = S.state.ready ? "all" : "before";
+}
+
+async function lines(response, onEvent) {
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let i;
+    while ((i = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, i);
+      buffer = buffer.slice(i + 1);
+      if (line.trim()) onEvent(JSON.parse(line));
+    }
+  }
+}
+
+async function follow() {
+  renderAll();
+  await lines(await fetch("/api/events?since=0"), e => (S.busy === "exam" ? onExam : onTrain)(e));
+  const kind = S.busy;
+  S.busy = null;
+  S.live = null;
+  await refresh();
+  if (kind === "train" && S.state.ready) S.brain = "all";
+  renderAll();
+}
+
+async function startJob(kind) {
+  const response = await fetch(`/api/${kind}`, { method: "POST" });
+  if (!response.ok) { alert((await response.json()).detail); return; }
+  S.busy = kind;
+  follow();
+}
+
+/* ---------- фраза дому ---------- */
+async function send(text) {
+  const modes = S.brain === "all" ? ["before", "after", "teacher"].filter(m => m !== "after" || S.state.ready) : [S.brain];
+  if (!text || S.busy || S.asking) return;
+  S.asking = true;
+  S.shown = null;
+  renderControls();
+  log("you", "👤", esc(text), S.room);
+  setStatus("wait", "мозг думает");
+  $("heard").innerHTML = `<span class="soft">колонка (${esc(S.room)}) слышит:</span> <b>${esc(text)}</b>`;
+  $("cmds").innerHTML = "";
+  $("rows").innerHTML = "";
+  $("rows").hidden = S.brain !== "all";
+  const results = [];
+  let row = null;
+  try {
+    const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ room: S.room, text, modes }) });
+    if (!response.ok) throw new Error((await response.json()).detail);
+    await lines(response, e => {
+      if (e.type === "start") row = e.row;
+      if (e.type === "error") throw new Error(e.message);
+      if (e.type === "answer") {
+        results.push(e);
+        logAnswer(e);
+        if (S.brain === "all") renderRows(results);
+        if (S.brain !== "all" || e.mode === "after" || (!S.state.ready && e.mode === "teacher")) perform(e);
+      }
+    });
+    if (S.brain === "all" && !S.shown?.mode) perform(results.at(-1));
+    const verdict = r => r.check ? r.check.ok : r.commands != null;
+    const label = results.length > 1 ? results.map(r => `${BRAINS[r.mode].short} ${verdict(r) ? "✓" : "✗"}`).join(" · ") : null;
+    const all = results.every(verdict), none = results.every(r => !verdict(r));
+    setStatus(all ? "ok" : none ? "bad" : "", label || (row ? (all ? "✓ верно" : "✗ мимо") : all ? "дом понял" : "дом не понял"));
+  } catch (err) {
+    setStatus("bad", "нет связи с мозгом");
+    log("bad", "⚠️", esc(err.message));
+  } finally {
+    S.asking = false;
+    renderControls();
+  }
+}
+
+function logAnswer(r) {
+  const meta = `${num(r.seconds, 1)} с · ${r.mode === "teacher" ? money(rub(r.usd)) : "бесплатно"}`;
+  log("raw", r.mode === "teacher" ? "🧙" : "🧠", `${r.check ? mark(r.check.ok) + " " : ""}${esc(short(r.answer, 160))}`, `${BRAINS[r.mode].title.toLowerCase()} · ${meta}`);
+}
+
+function renderRows(results) {
+  $("rows").innerHTML = results.map(r => {
+    const ok = r.check ? r.check.ok : r.commands != null;
+    const ck = r.check ? `<span class="ck ${ok ? "" : "no"}">${ok ? "✓ верно" : "✗ мимо"}</span>` : `<span class="ck ${ok ? "idle" : "no"}">${ok ? "понял" : "не JSON"}</span>`;
+    return `<div class="res" data-mode="${r.mode}"><b style="--tone: ${BRAINS[r.mode].tone}">${BRAINS[r.mode].title}</b>${ck}
+      <code>${esc(short(r.answer, 140))}</code><span class="meta">${num(r.seconds, 1)} с · ${r.mode === "teacher" ? money(rub(r.usd)) : "0 ₽"}</span></div>`;
+  }).join("");
+  $("rows").results = results;
+}
+
+function setStatus(tone, text) {
+  $("status").className = `status ${tone}`;
+  $("status").textContent = text;
+}
+
+function log(kind, avatar, html, label) {
+  const box = $("log"), item = document.createElement("div");
+  item.className = `msg ${kind}`;
+  item.innerHTML = `<i>${avatar}</i>${label ? `<small>${esc(label)}</small>` : ""}<div class="body">${html}</div>`;
+  box.append(item);
+  while (box.children.length > 80) box.firstChild.remove();
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ---------- обучение ---------- */
+function onTrain(e) {
+  if (e.type === "start") {
+    S.live = { ...e, steps: [], snaps: [] };
+    log("sys", "🎓", `Домовёнок учится на ответах учителя: ${e.train} фраз, ${e.total} шагов. На кадрах — 3 фразы теста.`);
+  } else if (!S.live) {
+    return;
+  } else if (e.type === "step") {
+    S.live.steps.push([e.step, e.loss]);
+    S.live.seconds = e.seconds;
+    S.live.first ??= e.seconds;
+  } else if (e.type === "snapshot") {
+    S.live.snaps.push(e);
+    const lines = S.live.probes.map((p, i) => `${mark(e.checks[i].ok)} ${esc(p.text)} → <span class="soft">${esc(short(e.answers[i], 70))}</span>`);
+    log("sys", "📸", lines.join("<br>"), e.step ? `шаг ${e.step} · лосс на valid ${num(e.val, 3)}` : "до обучения, без промпта");
+  } else if (e.type === "done") {
+    log("sys", "🎓", `Домовёнок дообучен за ${minutes(e.passport.seconds)}. Проведите экзамен на вкладке «Учитель → ученик».`);
+  } else if (e.type === "stopped") {
+    log("sys", "🎓", "Обучение остановлено — прежний адаптер на месте.");
+  } else if (e.type === "error") {
+    log("bad", "⚠️", esc(e.message));
+  }
+  if (e.type !== "end") renderTrain();
+}
+
+function spark(steps, w, h) {
+  if (steps.length < 2) return "";
+  const top = Math.max(...steps.map(s => s[1])), last = steps.at(-1)[0];
+  const pts = steps.map(([s, l]) => `${(s / last * w).toFixed(1)},${(h - Math.sqrt(l / top) * h).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="#23264d" stroke-width="2.5"/></svg>`;
+}
+
+function renderTrain() {
+  const { state } = S, run = state.run;
+  const live = S.busy === "train" ? S.live || { total: 0, steps: [] } : null;
+  const button = $("train-btn"), info = $("train-info");
+  $("params-btn").hidden = !run || !!live;
+  $("reset-btn").hidden = !state.ready || !!live;
+  button.disabled = S.busy === "exam" || S.asking || !state.report;
+  if (live) {
+    const step = live.steps.length ? live.steps.at(-1)[0] : 0;
+    const left = step > 1 ? (live.seconds - live.first) / (step - 1) * (live.total - step) : 0;
+    button.textContent = "■ Остановить";
+    button.className = "main press quiet";
+    const status = step > 1 ? `осталось ≈ ${minutes(left)}` : step ? "считаю скорость…" : "загружаю модель…";
+    info.innerHTML = `<div class="line"><b>Домовёнок учится: шаг ${step} из ${live.total || "…"}</b><span class="soft">${status}</span></div>
+      <div class="meter"><i style="width: ${live.total ? step / live.total * 100 : 0}%"></i></div>`;
+    const l = live.steps;
+    $("spark").innerHTML = l.length > 1 ? `${spark(l, 230, 58)}<div><span class="num">${num(l[0][1], 2)} → ${num(l.at(-1)[1], 2)}</span><small>лосс — ошибка на ответе учителя</small></div>` : "";
+    return;
+  }
+  const memory = state.free < 7 ? `<span class="warn">свободно ${num(state.free, 1)} ГБ — закройте лишние программы</span>` : "";
+  button.className = run ? "main press quiet" : "main press";
+  button.textContent = run ? "🎓 Дообучить заново" : "🎓 Дообучить домовёнка";
+  const n = state.report ? state.report.sizes.train : 0;
+  if (!state.report) {
+    info.innerHTML = `<div class="line"><b>Датасета от учителя нет</b><span class="soft">собрать: python -m house.collect</span></div>`;
+    $("spark").innerHTML = "";
+  } else if (run) {
+    const p = run.passport, s = run.steps;
+    info.innerHTML = `<div class="line"><b>Домовёнок дообучен ✓</b><span>${n} ответов учителя · ${minutes(p.seconds)} на процессоре</span>${memory}</div>`;
+    $("spark").innerHTML = `${spark(s, 230, 58)}<div><span class="num">${num(s[0][1], 2)} → ${num(s.at(-1)[1], 2)}</span><small>лосс по шагам</small></div>`;
+  } else {
+    const steps = Math.ceil(n / state.settings.batch) * state.settings.epochs;   // ≈ 7 с на шаг
+    info.innerHTML = `<div class="line"><b>Домовёнок не дообучен</b><span>${n} ответов учителя · ${steps} шагов</span><span class="soft">≈ ${Math.round(steps * 7 / 60)} мин</span>${memory}</div>`;
+    $("spark").innerHTML = "";
+  }
+}
+
+function renderControls() {
+  const blocked = !!S.busy || S.asking;
+  ["say", "go"].forEach(id => $(id).disabled = blocked);
+  document.querySelectorAll("#chips button").forEach(b => b.disabled = blocked);
+  document.querySelectorAll("#brains button").forEach(b => {
+    const needs = b.dataset.brain === "after" && !S.state.ready, cloud = b.dataset.brain === "teacher" && !S.state.teacher.key;
+    b.setAttribute("aria-pressed", b.dataset.brain === S.brain);
+    b.disabled = blocked || needs || cloud;
+    b.title = needs ? "Сначала дообучите домовёнка — кнопка внизу" : cloud ? "Нет ключа учителя в .env" : "";
+    b.style.setProperty("--tone", BRAINS[b.dataset.brain].tone);
+  });
+  $("brain-chip").textContent = S.brain === "all" ? "мозги: все трое" : `мозг: ${BRAINS[S.brain].title.toLowerCase()}`;
+  $("brain-chip").style.setProperty("--tone", BRAINS[S.brain].tone);
+  $("brain-sub").textContent = BRAINS[S.brain].sub;
+  $("where").textContent = `🧍 ${S.room}`;
+  $("reset-btn").disabled = blocked;
+  $("exam-run").disabled = blocked;
+}
+
+function renderAll() {
+  renderTrain();
+  renderControls();
+  if (!$("view-distill").hidden) renderDistill();
+}
+
+/* ---------- экзамен и вкладка «Учитель → ученик» ---------- */
+function onExam(e) {
+  if (e.type === "start") S.exam = { rows: e.rows, modes: e.modes, live: true, progress: {} };
+  else if (e.type === "progress") S.exam.progress = e;
+  else if (e.type === "done") S.exam = e.report;
+  else if (e.type === "error") alert(e.message);
+  if (e.type !== "end" && !$("view-distill").hidden) renderDistill();
+}
+
+function sum(mode) { return S.exam && S.exam.summary && S.exam.summary[mode]; }
+
+function renderDistill() {
+  renderFunnel();
+  const c = S.exam, live = S.busy === "exam";
+  $("exam-run").textContent = live ? "идёт экзамен…" : c && c.summary ? "▶ Провести заново" : "▶ Провести экзамен";
+  $("answers-btn").hidden = !(c && c.summary);
+  if (!c || !c.summary) {
+    const p = live && c && c.progress && c.progress.mode ? `сейчас: ${BRAINS[c.progress.mode].title.toLowerCase()} — ${c.progress.done} из ${c.progress.total}` : "";
+    $("score").innerHTML = `<div class="empty-card">${live ? `Экзамен идёт: 64 фразы × 3 мозга, по одной — как в жизни. ${p}` : "Экзамена ещё не было — нажмите «Провести экзамен» (≈ 8 мин)"}</div>`;
+    $("score-sub").textContent = "";
+    $("kinds").innerHTML = "";
+    return;
+  }
+  const modes = c.modes, n = c.rows.length, t = sum("teacher");
+  $("score-sub").textContent = `${n} фраз, написанных руками; учитель их тоже не видел · ${c.date.replace("T", " ")}`;
+  const head = `<div></div>${modes.map(m => `<div class="th" style="--tone: ${BRAINS[m].tone}">${BRAINS[m].title}<small>${m === "teacher" ? c.teacher + " · облако" : "Qwen3.5-0.8B · ноутбук"}</small></div>`).join("")}`;
+  const fastest = Math.min(...modes.map(m => sum(m).seconds)), cheapest = Math.min(...modes.map(m => sum(m).usd));
+  const quality = `<div class="rl">Качество<small>верно из ${n}</small></div>` + modes.map(m =>
+    `<div class="bar" style="--tone: ${BRAINS[m].tone}"><i style="width: ${sum(m).ok / n * 100}%"></i><b>${sum(m).ok} <small>${Math.round(sum(m).ok / n * 100)} %</small></b></div>`).join("");
+  const speed = `<div class="rl">Скорость<small>секунд на запрос</small></div>` + modes.map(m =>
+    `<div class="v ${sum(m).seconds === fastest ? "best" : ""}">${num(sum(m).seconds, 1)} с<small>${sum(m).tokens} ток. на входе</small></div>`).join("");
+  const cost = `<div class="rl">Цена<small>1 000 запросов</small></div>` + modes.map(m =>
+    `<div class="v ${sum(m).usd === cheapest ? "best" : ""}">${money(rub(sum(m).usd) * 1000)}<small>${m === "teacher" ? "токены учителя" : "электричество"}</small></div>`).join("");
+  $("score").innerHTML = `<div class="score">${head}${quality}${speed}${cost}</div>${summaryLine()}`;
+  renderKinds();
+}
+
+function summaryLine() {
+  const a = sum("after"), t = sum("teacher"), b = sum("before"), rep = S.state.report, run = S.state.run;
+  if (!a || !t) return "";
+  const spent = rub(rep.usd) + (run ? rub(run.passport.seconds * S.state.rates.watt / 3600 / 1000 * S.state.rates.kwh_rub / S.state.rates.usd_rub) : 0);
+  const save = rub(t.usd - a.usd), even = save > 0 ? Math.ceil(spent / save) : null;
+  return `<div class="sum">
+    <span>ученик после: <b>${b.ok} → ${a.ok}</b> из 64 — <b>${Math.round(a.ok / t.ok * 100)} %</b> от учителя</span>
+    <span>в <b>${num(t.seconds / a.seconds, 1)} раза</b> быстрее учителя</span>
+    <span>дистилляция стоила <b>${money(spent)}</b> — окупается за <b>${even ? num(even) : "—"}</b> запросов</span></div>`;
+}
+
+function renderKinds() {
+  const c = S.exam, per = k => c.rows.filter(r => r.kind === k).length;
+  $("kinds").innerHTML = `<div class="kinds">${Object.entries(KINDS).map(([k, info]) => {
+    const n = per(k), a = sum("after").kinds[k], t = sum("teacher").kinds[k], b = sum("before").kinds[k];
+    const bar = (m, v) => `<div class="bar" style="--tone: ${BRAINS[m].tone}"><i style="width: ${v / n * 100}%"></i><b>${v} <small>${BRAINS[m].short}</small></b></div>`;
+    const ok = t - a <= 1;      // разница в 1 фразу из 16 — шум
+    const chip = ok ? `<span class="verdict-chip" style="--tone: var(--mustard)">✓ заменяет</span>` : `<span class="verdict-chip" style="--tone: var(--err-bg); color: var(--err); border-color: var(--err)">✗ ещё ошибается</span>`;
+    return `<div class="kind" data-kind="${k}">${info.icon} ${info.title}<small>${info.sub}</small></div><div class="pair">${bar("before", b)}${bar("after", a)}${bar("teacher", t)}</div>${chip}`;
+  }).join("")}</div>`;
+  const run = S.state.run;
+  $("probe").innerHTML = run && run.snapshots ? `<div class="probe"><b>«${esc(run.probes[0].text)}»</b> <span class="soft">— ученик по ходу обучения:</span>${run.snapshots.map(s =>
+    `<div class="ep"><b>${s.step ? `шаг ${s.step}` : "до"}</b><span class="${s.checks[0].ok ? "" : "no"}">${s.checks[0].ok ? "✓" : "✗"} ${esc(short(s.answers[0], 90))}</span></div>`).join("")}</div>` : "";
+}
+
+function renderFunnel() {
+  const rep = S.state.report;
+  if (!rep) { $("funnel").innerHTML = `<div class="empty-card">Датасета ещё нет: python -m house.collect</div>`; $("data-sub").textContent = ""; return; }
+  $("data-sub").textContent = `учитель ${rep.teacher} придумал фразы и разметил их`;
+  const steps = rep.steps.map((s, i) => i === 0
+    ? `<span><b>${s.name}</b></span><span></span><span class="n">${num(s.left)}</span>`
+    : `<span title="${esc(s.why)}">− ${s.name} <span class="soft" style="font-size: 14px">· ${esc(s.why)}</span></span><span class="n ${s.removed ? "cut" : ""}">−${num(s.removed)}</span><span class="n">${num(s.left)}</span>`
+      + (s.examples && s.examples.length ? `<div class="ex">${s.examples.slice(0, 2).map(x => `[${esc(x.room)}] ${esc(x.text)} → ${esc(JSON.stringify(x.label))}`).join(" · ")}</div>` : "")).join("");
+  const sp = rep.spent, calls = Object.values(sp).reduce((a, v) => a + v.calls, 0);
+  const tokens = Object.values(sp).reduce((a, v) => a + v.in + v.out, 0);
+  $("funnel").innerHTML = `<div class="funnel"><span class="th">шаг</span><span class="th" style="text-align: right">убрано</span><span class="th" style="text-align: right">осталось</span>${steps}</div>
+    <div class="bill"><span>в обучение: <b>${num(rep.sizes.train)}</b> · valid <b>${num(rep.sizes.valid)}</b></span>
+      <span>вызовов учителя: <b>${num(calls)}</b> · <b>${num(tokens / 1000)}</b> тыс. токенов</span>
+      <span>цена датасета: <b>${money(rub(rep.usd))}</b> · ${minutes(rep.seconds)}</span></div>`;
+}
+
+function openAnswers(filter) {
+  const c = S.exam;
+  if (!c || !c.summary) return;
+  S.filter = filter || S.filter;
+  const filters = [["all", "все"], ["fail", "ученик после ошибся"], ["teacher-fail", "учитель ошибся"], ...Object.entries(KINDS).map(([k, v]) => [k, v.title.toLowerCase()])];
+  $("filters").innerHTML = filters.map(([k, t]) => `<button type="button" data-f="${k}" aria-pressed="${k === S.filter}">${t}</button>`).join("");
+  const keep = (r, i) => S.filter === "all" || r.kind === S.filter || (S.filter === "fail" && c.answers.after && !c.answers.after[i].ok)
+    || (S.filter === "teacher-fail" && !c.answers.teacher[i].ok);
+  const head = `<tr><th>Фраза</th>${c.modes.map(m => `<th class="m" style="--tone: ${BRAINS[m].tone}">${BRAINS[m].title} · ${sum(m).ok}</th>`).join("")}</tr>`;
+  const body = c.rows.map((r, i) => !keep(r, i) ? "" : `<tr class="row" data-i="${i}"><td class="q">${esc(r.text)}<small>${esc(r.room)} · ${KINDS[r.kind].title.toLowerCase()}</small></td>${c.modes.map(m => {
+    const a = c.answers[m][i];
+    const extra = a.extra.length ? ` <span class="x">лишнее: ${esc(a.extra.join(", "))}</span>` : "";
+    const miss = a.missing.length ? ` <span class="x">нет: ${esc(a.missing.join(", "))}</span>` : "";
+    return `<td><div class="cell">${mark(a.ok)}<span>${esc(short(a.answer, 140))}${a.ok ? "" : extra + miss}</span></div></td>`;
+  }).join("")}</tr>`).join("");
+  $("answers-table").innerHTML = head + body;
+  $("answers").hidden = false;
+}
+
+/* ---------- окна ---------- */
+function showView(view) {
+  document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-current", b.dataset.view === view));
+  $("view-app").hidden = view !== "app";
+  $("view-distill").hidden = view !== "distill";
+  if (view === "distill") renderDistill();
+  else requestAnimationFrame(() => placeVac(false));
+}
+
+function renderHow() {
+  const { model, report } = S.state, pct = model.trainable / model.total * 100;
+  $("how-cards").innerHTML = `
+    <div><h3>1 · Учитель</h3><div class="big">${esc(S.state.teacher.name)}</div><div class="soft" style="margin-top: 8px">большая модель в облаке: понимает «холодно» и «ухожу», но платно и через интернет</div></div>
+    <div><h3>2 · Датасет</h3><div class="big">${report ? num(report.sizes.train) : "—"}</div><div class="soft">ответов учителя: придумал фразы, разметил дважды; плохое и спорное выкинуто</div></div>
+    <div><h3>3 · Ученик учится</h3><div class="big">${num(pct, 1)} %</div><div class="soft">весов Qwen3.5-0.8B — вставки LoRA; учится писать ответ учителя, промпт больше не нужен</div></div>
+    <div><h3>4 · Сравнение</h3><pre>ученик до   ← промпт
+ученик после
+учитель     ← промпт
+64 фразы · качество
+скорость · цена</pre></div>`;
+}
+
+function renderParams() {
+  const p = S.state.run.passport;
+  const rows = [
+    ["Модель", p.model], ["Датасет", p.dataset], ["Примеров", `${p.train} на обучение · ${p.val} на проверку (valid)`],
+    ["Эпох · батч · шагов", `${p.epochs} · ${p.batch} · ${p.steps}`], ["Learning rate", `${p.lr} — разгон ${p.warmup} шагов, косинус до 10 %`],
+    ["LoRA", `r ${p.lora.r} · alpha ${p.lora.alpha} · dropout ${p.lora.dropout} · ${p.lora.targets}`],
+    ["Числа", p.precision], ["Компьютер", `${p.machine.cpu} · ${p.threads} потоков · ${p.machine.ram} ГБ · без видеокарты`],
+    ["Время", minutes(p.seconds)], ["Адаптер", `${p.adapter} · ${num(p.adapter_mb, 1)} МБ`],
+    ["Версии", `torch ${p.versions.torch} · transformers ${p.versions.transformers} · peft ${p.versions.peft}`],
+  ];
+  $("passport").innerHTML = rows.map(([k, v]) => `<b>${k}</b><span>${esc(v)}</span>`).join("");
+}
+
+/* ---------- события страницы ---------- */
+$("command").addEventListener("submit", e => { e.preventDefault(); send($("say").value.trim()); });
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b || b.disabled) return;
+  $("say").value = b.textContent;
+  send(b.textContent);
+});
+$("plan").addEventListener("click", e => {
+  const r = e.target.closest(".room");
+  if (!r || S.asking) return;
+  S.room = r.dataset.room;
+  renderPlan();
+  renderControls();
+});
+$("rows").addEventListener("click", e => {
+  const r = e.target.closest(".res");
+  if (!r) return;
+  S.home = freshHome();
+  renderPlan();
+  perform($("rows").results.find(x => x.mode === r.dataset.mode));
+});
+$("home-reset").addEventListener("click", () => { S.home = freshHome(); renderPlan(); $("cmds").innerHTML = ""; });
+$("brains").addEventListener("click", e => {
+  const b = e.target.closest("button[data-brain]");
+  if (!b || b.disabled || S.brain === b.dataset.brain) return;
+  S.brain = b.dataset.brain;
+  $("rows").hidden = true;
+  setStatus("", "ждёт фразу");
+  renderControls();
+  log("sys", "🔁", `Мозг: <b>${BRAINS[S.brain].title.toLowerCase()}</b>`);
+});
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button[data-view]"); if (b) showView(b.dataset.view); });
+$("train-btn").addEventListener("click", async () => {
+  if (S.busy === "train") { await fetch("/api/job", { method: "DELETE" }); return; }
+  if (S.state.free < 7 && !confirm(`Свободно ${num(S.state.free, 1)} ГБ, обучению нужно около 6. Начать?`)) return;
+  startJob("train");
+});
+$("reset-btn").addEventListener("click", async () => {
+  if (!confirm("Сбросить обучение? Ученик снова будет «до»; адаптер и экзамен уйдут в архив data/house/archive.")) return;
+  const response = await fetch("/api/reset", { method: "POST" });
+  const body = await response.json();
+  if (!response.ok) { alert(body.detail); return; }
+  await refresh();
+  log("sys", "↺", `Обучение сброшено: ученик снова «до». Прежний адаптер — в ${esc(body.archive || "архиве")}.`);
+  renderAll();
+});
+$("exam-run").addEventListener("click", () => startJob("exam"));
+$("answers-btn").addEventListener("click", () => openAnswers("all"));
+$("kinds").addEventListener("click", e => { const k = e.target.closest("[data-kind]"); if (k) openAnswers(k.dataset.kind); });
+$("filters").addEventListener("click", e => { const b = e.target.closest("button[data-f]"); if (b) openAnswers(b.dataset.f); });
+$("answers").addEventListener("click", e => {
+  const tr = e.target.closest("tr.row");
+  if (!tr || S.asking) return;
+  const c = S.exam, i = +tr.dataset.i, row = c.rows[i];
+  $("answers").hidden = true;
+  showView("app");
+  S.room = row.room;
+  S.home = freshHome();
+  renderPlan();
+  renderControls();
+  $("say").value = row.text;
+  $("heard").innerHTML = `<span class="soft">из экзамена · колонка (${esc(row.room)}) слышит:</span> <b>${esc(row.text)}</b>`;
+  log("you", "👤", esc(row.text), `${row.room} · из экзамена`);
+  const results = c.modes.map(m => ({ ...c.answers[m][i], mode: m, commands: parse(c.answers[m][i].answer), check: c.answers[m][i] }));
+  $("rows").hidden = false;
+  renderRows(results);
+  perform(results.find(r => r.mode === (S.brain === "all" ? "after" : S.brain)) || results[0]);
+});
+$("prompt-btn").addEventListener("click", () => {
+  $("prompt").hidden = false;
+  $("prompt-text").textContent = S.state.prompt;
+  $("prompt-sub").textContent = "Он идёт перед каждой фразой ученику «до» и учителю. Ученику «после» не нужен — правила он взял из ответов учителя.";
+});
+$("how-btn").addEventListener("click", () => { $("how").hidden = false; renderHow(); });
+$("params-btn").addEventListener("click", () => { $("params").hidden = false; renderParams(); });
+document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", e => {
+  if (e.target === o || e.target.closest("[data-close]")) o.hidden = true;
+}));
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".overlay").forEach(o => o.hidden = true); });
+window.addEventListener("resize", () => placeVac(false));
+
+function parse(text) {       // как дом читает ответ — та же логика, что home.parse на сервере
+  try {
+    let v = JSON.parse(String(text).trim().replace(/^```\w*\s*|\s*```$/g, ""));
+    if (v && !Array.isArray(v) && typeof v === "object" && Object.keys(v).length === 1) v = Object.values(v)[0];
+    return Array.isArray(v) && v.every(x => typeof x === "string") ? v.map(x => x.toLowerCase().replace(/ё/g, "е").split(/\s+/).join(" ")) : null;
+  } catch { return null; }
+}
+
+load();
+</script>
+</body>
+</html>
